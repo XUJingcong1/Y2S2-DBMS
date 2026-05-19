@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- [View] Pharmacist / Admin Inventory -->
+            <div id="view-pharmacist-inventory" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Pharmacy Inventory Ledger</h2><p class="text-sm font-bold text-slate-400 mt-1">Low stock automatically highlighted to ensure dispensing safety.</p></div>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Record ID</th>
+                                <th class="py-4 px-4">Pharmacy Code</th>
+                                <th class="py-4 px-4">Medicine</th>
+                                <th class="py-4 px-4">Current Stock</th>
+                                <th class="py-4 px-4">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <!-- Normal Stock -->
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">{{ store.str_id }}</td>
+                                <td class="py-4 px-4">{{ store.pharmacy.ph_name }}</td>
+                                <td class="py-4 px-4">{{ store.medicine.m_name }}</td>
+                                <td class="py-4 px-4 text-emerald-600 font-black">{{ store.quantity }}</td>
+                                <td class="py-4 px-4 text-slate-500">{{ store.last_update }}</td>
+                            </tr>
+                            <!-- Warning Stock -->
+                            <tr class="bg-rose-50/50 border-b border-rose-100">
+                                <td class="py-4 px-4 font-mono text-rose-500">STR-002</td>
+                                <td class="py-4 px-4 text-rose-900">PH-Emerg (Emergency)</td>
+                                <td class="py-4 px-4 text-rose-900">Ibuprofen Suspension</td>
+                                <td class="py-4 px-4 text-rose-600 font-black flex items-center"><i class="ph-bold ph-warning mr-1"></i> 12 btls (Threshold 50)</td>
+                                <td class="py-4 px-4 text-rose-500">2026-05-21</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+            
+            <!-- [View] Admin Dashboard -->
+            <div id="dashboard" class="view-section grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+                <!-- Left KPI Cards -->
+                <div class="lg:col-span-3 flex flex-col gap-5">
+                    <div class="bg-white rounded-[2rem] p-6 shadow-sm flex flex-col justify-between border border-slate-50">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4"><i class="ph-fill ph-prescription text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Prescription Table</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Daily Prescriptions</h3><div class="text-3xl font-black text-slate-900">{{ prescription_count }}</div><p class="text-xs font-bold text-emerald-500 mt-2">Based on current database</p></div>
+                    </div>
+                    <div class="bg-white rounded-[2rem] p-6 shadow-sm flex flex-col justify-between border border-slate-50">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-4"><i class="ph-fill ph-warning-octagon text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Store / Batch</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Low Stock & Expiry Alerts</h3><div class="text-3xl font-black text-slate-900">{{ low_stock_count }} <span class="text-sm text-slate-400">items</span></div><p class="text-xs font-bold text-rose-500 mt-2">Needs immediate action</p></div>
+                    </div>
+                    <div class="bg-slate-800 rounded-[2rem] p-6 shadow-sm flex flex-col justify-between text-white border border-slate-700">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-4"><i class="ph-fill ph-receipt text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-white/10 px-2 py-1 rounded text-slate-300">Hospital_Order</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-300 text-sm mb-1">Pending Purchase Orders</h3><div class="text-3xl font-black">{{ pending_orders }} <span class="text-sm text-slate-400">orders</span></div><p class="text-xs font-bold text-emerald-400 mt-2">Status: Awaiting Delivery</p></div>
+                    </div>
+                </div>
+                <!-- Middle Chart -->
+                <div class="lg:col-span-9 flex flex-col gap-6">
+                    <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col relative border border-slate-50">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-extrabold text-slate-900">Medicine Consumption Trend</h2>
+                                <div class="flex gap-3">
+                                    <select id="filter-type" class="bg-slate-50 rounded-full py-2 px-4 text-sm font-bold">
+                                        <option value="month">Monthly</option>  
+                                        <option value="year">Yearly</option>
+                                    </select>
+                                    <select id="filter-value" class="bg-slate-50 rounded-full py-2 px-4 text-sm font-bold">
+                                        <option value="2024">2024</option>      
+                                    </select>
+                                </div>
+                        </div>
+                        <div class="flex-1 w-full relative">
+                            <canvas id="adminTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+             window.chartLabels = {{ chart_labels|safe }};
+            window.chartData = {{ chart_data|safe }};
+            </script>
+            <script>
+                document.getElementById('filter-type').addEventListener('change', reloadChart);
+                function reloadChart() {
+                const type =document.getElementById('filter-type').value;
+                const value =document.getElementById('filter-value').value;
+                window.location.href =`/admin/dashboard/?type=${type}&value=${value}`;}
+            </script>
+{% endblock %}

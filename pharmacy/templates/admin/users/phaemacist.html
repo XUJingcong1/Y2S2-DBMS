@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+
+    <h2 class="text-2xl font-extrabold text-slate-900 mb-6">
+        Pharmacist Management
+    </h2>
+
+    <table class="w-full text-left border-collapse">
+
+        <thead>
+            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+
+                <th class="py-4 px-4">Pharmacist ID</th>
+                <th class="py-4 px-4">Name</th>
+                <th class="py-4 px-4">Phone</th>
+                <th class="py-4 px-4">Pharmacy</th>
+
+            </tr>
+        </thead>
+
+        <tbody class="text-sm font-bold text-slate-700">
+
+            {% for pharmacist in pharmacists %}
+
+            <tr class="border-b border-slate-50">
+
+                <td class="py-4 px-4">
+                    {{ pharmacist.ph_id }}
+                </td>
+
+                <td class="py-4 px-4">
+                    {{ pharmacist.ph_first_name }}
+                    {{ pharmacist.ph_last_name }}
+                </td>
+
+                <td class="py-4 px-4">
+                    {{ pharmacist.ph_phone1 }}
+                </td>
+
+                <td class="py-4 px-4">
+                    {{ pharmacist.pharmacy }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endblock %}

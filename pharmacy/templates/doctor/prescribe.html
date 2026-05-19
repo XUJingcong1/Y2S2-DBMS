@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+ 
+ {% block content %}
+<!-- [View] Doctor Prescribe -->
+            <div id="view-doctor-prescribe" class="view-section hidden h-full flex gap-6">
+                <!-- Left Form -->
+                <div class="w-1/3 bg-white rounded-[2.5rem] p-8 shadow-sm flex flex-col">
+                    <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4"><i class="ph-bold ph-pencil-simple text-2xl"></i></div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 mb-6">New Prescription</h2>
+                    <div class="space-y-4 flex-1">
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Search Patient</label><input type="text" placeholder="PA-001" class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-200 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Department</label><select class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 outline-none"><option>Internal Medicine</option><option>Surgery</option></select></div>
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Clinical Diagnosis</label><textarea rows="2" class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 outline-none resize-none" placeholder="Enter symptoms..."></textarea></div>
+                    </div>
+                    <button class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-md hover:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-check-circle mr-2 text-lg"></i> Submit Prescription</button>
+                    <p class="text-[10px] text-center text-soft-orange font-bold mt-3">* Submission writes to Prescription & Contain tables</p>
+                </div>
+                <!-- Right Form -->
+                <div class="w-2/3 bg-white rounded-[2.5rem] p-8 shadow-sm flex flex-col">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4">Prescription Details (Contain)</h2>
+                    <div class="relative mb-6">
+                        <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="text" placeholder="Search medicine name..." class="w-full bg-white border-2 border-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none shadow-sm">
+                    </div>
+                    <div class="flex-1 bg-slate-50 rounded-2xl border border-slate-100 p-2 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead><tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-200"><th class="py-3 px-4">Medicine</th><th class="py-3 px-4">Unit Price</th><th class="py-3 px-4 text-center">Quantity</th></tr></thead>
+                            <tbody class="text-sm font-bold text-slate-700">
+                                <tr class="border-b border-slate-100 bg-white rounded-xl shadow-sm">
+                                    <td class="py-3 px-4 rounded-l-xl text-slate-900">Amoxicillin Capsules</td><td class="py-3 px-4">$ 12.50</td>
+                                    <td class="py-3 px-4 rounded-r-xl text-center">
+                                        <div class="inline-flex items-center bg-slate-50 rounded-lg p-1 border border-slate-200"><button class="w-6 h-6 rounded bg-white shadow-sm">-</button><span class="w-8 text-center text-slate-900">2</span><button class="w-6 h-6 rounded bg-white shadow-sm">+</button></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+{% endblock %}

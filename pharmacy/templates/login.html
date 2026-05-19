@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNBU Modern Hospital Pharmacy System</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #b8c6d3; overflow: hidden; }
+        ::-webkit-scrollbar { display: none; }
+        
+        .bg-soft-blue { background-color: #89cce7; }
+        .bg-soft-orange { background-color: #f16847; }
+        .bg-soft-green { background-color: #a0d4a4; }
+        .bg-soft-yellow { background-color: #f6b566; }
+        .text-soft-orange { color: #f16847; }
+
+        /* Animations */
+        .fade-in { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .fade-out { animation: fadeOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.05); } }
+
+        /* Dynamic Nav Styles */
+        .nav-item { transition: all 0.3s ease; }
+        .nav-active { background-color: #b9e3f3; color: #0f172a; font-weight: 700; }
+        .nav-inactive { color: #64748b; font-weight: 600; }
+        .nav-inactive:hover { color: #0f172a; background-color: rgba(255,255,255,0.6); }
+
+        /* Glassmorphism Login */
+        .glass-login {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 24px 48px rgba(0,0,0,0.08);
+        }
+    </style>
+</head>
+<body>
+<!-- ================= 0. Login Overlay ================= -->
+    <div id="login-overlay" class="absolute inset-0 z-50 bg-[#b8c6d3] flex items-center justify-center transition-all duration-500">
+        <div class="absolute w-[30rem] h-[30rem] bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 -top-10 -left-10 animate-pulse"></div>
+        <div class="absolute w-[30rem] h-[30rem] bg-emerald-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 bottom-10 right-10 animate-pulse" style="animation-delay: 2s;"></div>
+        
+        <div class="glass-login rounded-[2.5rem] p-10 w-[420px] relative z-10 flex flex-col items-center fade-in">
+            <div class="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6 shadow-xl">
+                <i class="ph-bold ph-pill text-4xl text-white transform -rotate-45"></i>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900 mb-1">BNBU SSO Portal</h1>
+            <p class="text-sm font-bold text-slate-500 mb-8">Unified Authentication</p>
+            
+            <form method="POST" class="w-full">
+            {% csrf_token %}
+            <div class="w-full space-y-4 mb-8">
+                <div class="relative">
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Select Role</label>
+                    <select id="login-role-select" name="role" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 appearance-none shadow-sm">
+                        <option value="Admin">System Admin (Admin)</option>
+                        <option value="Doctor">Doctor</option>
+                        <option value="Pharmacist">Pharmacist</option>
+                        <option value="Distributor">Distributor</option>
+                    </select>
+                    <i class="ph-bold ph-caret-down absolute right-4 top-9 text-slate-400"></i>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Staff ID / Username</label>
+                    <input type="text" name="username" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-sm text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Password</label>
+                    <input type="password" name="password" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-sm text-slate-700">
+                </div>
+            </div>
+            {% if error %}
+            <p class="text-red-500 text-sm font-bold mb-4">
+            {{ error }}
+            </p>
+            {% endif %}
+            <button type="submit" class="w-full bg-slate-800 text-white font-bold text-base py-3.5 rounded-full shadow-lg shadow-slate-800/30 hover:bg-slate-700 transition-all transform hover:-translate-y-0.5">
+                Login
+            </button>
+        </form>
+        </div>
+    </div>
+</body>
+</html>

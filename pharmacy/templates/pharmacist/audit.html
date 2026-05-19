@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+ 
+ {% block content %}
+<!-- [View] Pharmacist Audit & Dispense -->
+            <div id="view-pharmacist-audit" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Dispensing & Audit Workspace</h2><p class="text-sm font-bold text-slate-400 mt-1">Verify Prescription, Contain, and Payment status. Dispensing triggers stock deduction.</p></div>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Prescription ID</th>
+                                <th class="py-4 px-4">Patient</th>
+                                <th class="py-4 px-4">Medication Details</th>
+                                <th class="py-4 px-4">Payment Status</th>
+                                <th class="py-4 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <!-- Normal Row -->
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">PR-99201</td>
+                                <td class="py-4 px-4">John Doe</td>
+                                <td class="py-4 px-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">Amoxicillin Qty:2</span></td>
+                                <td class="py-4 px-4"><span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs flex items-center w-max"><i class="ph-fill ph-check-circle mr-1"></i> Paid</span></td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs hover:bg-slate-700 shadow-sm">Confirm & Dispense</button>
+                                </td>
+                            </tr>
+                            <!-- ★ Blocked Unpaid Row ★ -->
+                            <tr class="bg-rose-50/50 border-b border-rose-100">
+                                <td class="py-4 px-4 font-mono text-rose-500">PR-99202</td>
+                                <td class="py-4 px-4 text-rose-900">Jane Smith</td>
+                                <td class="py-4 px-4"><span class="bg-white text-slate-600 border border-rose-200 px-2 py-1 rounded text-xs">Ibuprofen Qty:1</span></td>
+                                <td class="py-4 px-4">
+                                    <span class="bg-rose-500 text-white px-3 py-1.5 rounded-full text-xs flex items-center w-max shadow-sm shadow-rose-500/30 animate-pulse">
+                                        <i class="ph-bold ph-warning mr-1"></i> Unpaid
+                                    </span>
+                                </td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="bg-slate-200 text-slate-400 px-4 py-2 rounded-xl text-xs cursor-not-allowed flex items-center justify-end w-full" disabled>
+                                        <i class="ph-bold ph-prohibit mr-1"></i> Blocked: Do Not Dispense
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% endblock %}

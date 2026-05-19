@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNBU Modern Hospital Pharmacy System</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #b8c6d3; overflow: hidden; }
+        ::-webkit-scrollbar { display: none; }
+        
+        .bg-soft-blue { background-color: #89cce7; }
+        .bg-soft-orange { background-color: #f16847; }
+        .bg-soft-green { background-color: #a0d4a4; }
+        .bg-soft-yellow { background-color: #f6b566; }
+        .text-soft-orange { color: #f16847; }
+
+        /* Animations */
+        .fade-in { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .fade-out { animation: fadeOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.05); } }
+
+        /* Dynamic Nav Styles */
+        .nav-item { transition: all 0.3s ease; }
+        .nav-active { background-color: #b9e3f3; color: #0f172a; font-weight: 700; }
+        .nav-inactive { color: #64748b; font-weight: 600; }
+        .nav-inactive:hover { color: #0f172a; background-color: rgba(255,255,255,0.6); }
+
+        /* Glassmorphism Login */
+        .glass-login {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 24px 48px rgba(0,0,0,0.08);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center p-4 md:p-6 relative">
+
+    <!-- ================= 0. Login Overlay ================= -->
+    <div id="login-overlay" class="absolute inset-0 z-50 bg-[#b8c6d3] flex items-center justify-center transition-all duration-500">
+        <div class="absolute w-[30rem] h-[30rem] bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 -top-10 -left-10 animate-pulse"></div>
+        <div class="absolute w-[30rem] h-[30rem] bg-emerald-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 bottom-10 right-10 animate-pulse" style="animation-delay: 2s;"></div>
+        
+        <div class="glass-login rounded-[2.5rem] p-10 w-[420px] relative z-10 flex flex-col items-center fade-in">
+            <div class="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6 shadow-xl">
+                <i class="ph-bold ph-pill text-4xl text-white transform -rotate-45"></i>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900 mb-1">BNBU SSO Portal</h1>
+            <p class="text-sm font-bold text-slate-500 mb-8">Unified Authentication</p>
+            
+            <div class="w-full space-y-4 mb-8">
+                <div class="relative">
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Select Role</label>
+                    <select id="login-role-select" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 appearance-none shadow-sm">
+                        <option value="Admin">System Admin (Admin)</option>
+                        <option value="Doctor">Doctor</option>
+                        <option value="Pharmacist">Pharmacist</option>
+                        <option value="Distributor">Distributor</option>
+                    </select>
+                    <i class="ph-bold ph-caret-down absolute right-4 top-9 text-slate-400"></i>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Staff ID / Username</label>
+                    <input type="text" value="admin_001" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-sm text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">Password</label>
+                    <input type="password" value="********" class="w-full bg-white/90 border-2 border-white rounded-2xl py-3 px-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-sm text-slate-700">
+                </div>
+            </div>
+            
+            <button onclick="handleLogin()" class="w-full bg-slate-800 text-white font-bold text-base py-3.5 rounded-full shadow-lg shadow-slate-800/30 hover:bg-slate-700 transition-all transform hover:-translate-y-0.5">
+                Login
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= Main Workspace ================= -->
+    <main id="main-app" class="w-full h-full max-w-[1600px] bg-[#f0f4f8] rounded-[2.5rem] shadow-2xl flex flex-col p-6 md:p-8 relative overflow-hidden opacity-0">
+        
+        <!-- ================= Header ================= -->
+        <header class="flex items-center justify-between mb-8 z-20">
+            <!-- Left: Logo & Page Title -->
+            <div class="flex items-center">
+                <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mr-4 shadow-sm">
+                    <i class="ph-bold ph-pill text-2xl text-white transform -rotate-45"></i>
+                </div>
+                <div>
+                    <h1 id="page-main-title" class="text-3xl font-extrabold text-slate-900 tracking-tight">Data Statistics</h1>
+                    <p id="page-sub-title" class="text-xs font-bold text-slate-500 mt-0.5">Admin Workspace</p>
+                </div>
+            </div>
+
+            <!-- Right: Dynamic Nav & Profile -->
+            <div class="flex items-center bg-white/80 backdrop-blur-md px-2 py-1.5 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-white">
+                <!-- Nav Pills -->
+                <nav id="dynamic-nav" class="hidden lg:flex items-center space-x-1 pr-4 border-r border-slate-200 mr-4">
+                    <!-- Auto generated by JS -->
+                </nav>
+
+                <!-- Profile & Switch Dropdown -->
+                <div class="relative flex items-center pr-2">
+                    <div class="flex flex-col items-end mr-3 text-right">
+                        <span class="font-extrabold text-slate-800 text-sm leading-tight" id="user-greeting">System Admin</span>
+                        <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md mt-0.5" id="user-role-label">Admin</span>
+                    </div>
+                    
+                    <button onclick="document.getElementById('role-dropdown').classList.toggle('hidden')" class="relative group cursor-pointer flex items-center justify-center w-11 h-11 rounded-full bg-slate-100 border-2 border-white shadow-sm hover:shadow-md transition-all">
+                        <i id="user-icon" class="ph-fill ph-shield-check text-2xl text-slate-700"></i>
+                        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-slate-800 text-white rounded-full flex items-center justify-center border-2 border-white">
+                            <i class="ph-bold ph-arrows-left-right text-[8px]"></i>
+                        </div>
+                    </button>
+
+                    <!-- Dropdown -->
+                    <div id="role-dropdown" class="hidden absolute top-14 right-0 w-56 bg-white rounded-2xl shadow-2xl py-2 z-50 border border-slate-100 fade-in origin-top-right">
+                        <div class="px-4 py-2 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-50 mb-1 border-b border-slate-100">Role Simulation</div>
+                        <a href="#" onclick="initRole('Admin')" class="flex items-center px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900"><i class="ph-fill ph-shield-check mr-3 text-lg text-purple-500"></i> Admin (Global)</a>
+                        <a href="#" onclick="initRole('Doctor')" class="flex items-center px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900"><i class="ph-fill ph-stethoscope mr-3 text-lg text-blue-500"></i> Doctor</a>
+                        <a href="#" onclick="initRole('Pharmacist')" class="flex items-center px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900"><i class="ph-fill ph-first-aid mr-3 text-lg text-emerald-500"></i> Pharmacist</a>
+                        <a href="#" onclick="initRole('Distributor')" class="flex items-center px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900"><i class="ph-fill ph-truck mr-3 text-lg text-amber-500"></i> Distributor</a>
+                        <div class="border-t border-slate-100 my-1"></div>
+                        <a href="#" onclick="logout()" class="flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="ph-bold ph-sign-out mr-3 text-lg"></i> Logout</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ================= View Render Area ================= -->
+        <div class="flex-1 overflow-y-auto relative rounded-3xl pb-4">
+            
+            <!-- [View] Admin Dashboard -->
+            <div id="view-admin-dashboard" class="view-section grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+                <!-- Left KPI Cards -->
+                <div class="lg:col-span-3 flex flex-col gap-5">
+                    <div class="bg-white rounded-[2rem] p-6 shadow-sm flex flex-col justify-between border border-slate-50">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4"><i class="ph-fill ph-prescription text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Prescription Table</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Daily Prescriptions</h3><div class="text-3xl font-black text-slate-900">1,230</div><p class="text-xs font-bold text-emerald-500 mt-2">+12.5% vs yesterday</p></div>
+                    </div>
+                    <div class="bg-white rounded-[2rem] p-6 shadow-sm flex flex-col justify-between border border-slate-50">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-4"><i class="ph-fill ph-warning-octagon text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Store / Batch</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Low Stock & Expiry Alerts</h3><div class="text-3xl font-black text-slate-900">45 <span class="text-sm text-slate-400">items</span></div><p class="text-xs font-bold text-rose-500 mt-2">Needs immediate action</p></div>
+                    </div>
+                    <div class="bg-slate-800 rounded-[2rem] p-6 shadow-sm flex flex-col justify-between text-white border border-slate-700">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-4"><i class="ph-fill ph-receipt text-2xl"></i></div>
+                            <span class="text-xs font-bold bg-white/10 px-2 py-1 rounded text-slate-300">Hospital_Order</span>
+                        </div>
+                        <div><h3 class="font-bold text-slate-300 text-sm mb-1">Pending Purchase Orders</h3><div class="text-3xl font-black">12 <span class="text-sm text-slate-400">orders</span></div><p class="text-xs font-bold text-emerald-400 mt-2">Status: Awaiting Delivery</p></div>
+                    </div>
+                </div>
+                <!-- Middle Chart -->
+                <div class="lg:col-span-9 flex flex-col gap-6">
+                    <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col relative border border-slate-50">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-extrabold text-slate-900">Medicine Consumption Trend</h2>
+                            <select class="bg-slate-50 border-none rounded-full py-2 px-4 text-sm font-bold text-slate-600 outline-none"><option>Monthly</option><option>By Pharmacy</option></select>
+                        </div>
+                        <div class="flex-1 w-full relative">
+                            <canvas id="adminTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- [View] Admin Users Management -->
+            <div id="view-admin-users" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h2 class="text-2xl font-extrabold text-slate-900">User Management (CRUD)</h2>
+                            <p class="text-sm font-bold text-slate-400 mt-1">Manage entity records for Doctor, Pharmacist, Warehouse_Keeper.</p>
+                        </div>
+                        <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold shadow-md hover:bg-slate-700 flex items-center">
+                            <i class="ph-bold ph-plus mr-2 text-lg"></i> Add New Record
+                        </button>
+                    </div>
+                    
+                    <div class="flex space-x-2 mb-6 border-b border-slate-100 pb-2">
+                        <button class="px-5 py-2 bg-blue-50 text-blue-600 rounded-full text-sm font-bold">Doctor</button>
+                        <button class="px-5 py-2 text-slate-500 hover:bg-slate-50 rounded-full text-sm font-bold">Pharmacist</button>
+                        <button class="px-5 py-2 text-slate-500 hover:bg-slate-50 rounded-full text-sm font-bold">Warehouse Keeper</button>
+                    </div>
+
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Staff ID</th>
+                                <th class="py-4 px-4">Name</th>
+                                <th class="py-4 px-4">Gender / Age</th>
+                                <th class="py-4 px-4">Department</th>
+                                <th class="py-4 px-4">Phone</th>
+                                <th class="py-4 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">DC-1001</td>
+                                <td class="py-4 px-4 flex items-center"><div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">W</div> Dr. Wei</td>
+                                <td class="py-4 px-4">M / 45</td>
+                                <td class="py-4 px-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-xs">Cardiology</span></td>
+                                <td class="py-4 px-4 font-mono text-slate-500">138-0000-1111</td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg text-xs hover:bg-blue-100 mr-2">Edit</button>
+                                    <button class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg text-xs hover:bg-rose-100">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- [View] Admin Medicines Directory -->
+            <div id="view-admin-medicines" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Medicine Directory</h2><p class="text-sm font-bold text-slate-400 mt-1">Maintain medicine details, pricing, and manufacturers globally.</p></div>
+                        <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold shadow-md hover:bg-slate-700 flex items-center"><i class="ph-bold ph-plus mr-2 text-lg"></i> Add Medicine</button>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Medicine ID</th>
+                                <th class="py-4 px-4">Generic Name</th>
+                                <th class="py-4 px-4">Manufacturer</th>
+                                <th class="py-4 px-4">Unit Price</th>
+                                <th class="py-4 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">M-8801</td>
+                                <td class="py-4 px-4 text-slate-900">Amoxicillin Capsules 0.25g</td>
+                                <td class="py-4 px-4 text-slate-500">Harbin Pharma Group</td>
+                                <td class="py-4 px-4 text-emerald-600 font-black">$ 12.50</td>
+                                <td class="py-4 px-4 text-right"><button class="text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg text-xs mr-2">Adjust Price</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- [View] Pharmacist / Admin Inventory -->
+            <div id="view-pharmacist-inventory" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Pharmacy Inventory Ledger</h2><p class="text-sm font-bold text-slate-400 mt-1">Low stock automatically highlighted to ensure dispensing safety.</p></div>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Record ID</th>
+                                <th class="py-4 px-4">Pharmacy Code</th>
+                                <th class="py-4 px-4">Medicine</th>
+                                <th class="py-4 px-4">Current Stock</th>
+                                <th class="py-4 px-4">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <!-- Normal Stock -->
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">STR-001</td>
+                                <td class="py-4 px-4">PH-West (Western Meds)</td>
+                                <td class="py-4 px-4">Amoxicillin Capsules</td>
+                                <td class="py-4 px-4 text-emerald-600 font-black">850 boxes</td>
+                                <td class="py-4 px-4 text-slate-500">2026-05-23</td>
+                            </tr>
+                            <!-- Warning Stock -->
+                            <tr class="bg-rose-50/50 border-b border-rose-100">
+                                <td class="py-4 px-4 font-mono text-rose-500">STR-002</td>
+                                <td class="py-4 px-4 text-rose-900">PH-Emerg (Emergency)</td>
+                                <td class="py-4 px-4 text-rose-900">Ibuprofen Suspension</td>
+                                <td class="py-4 px-4 text-rose-600 font-black flex items-center"><i class="ph-bold ph-warning mr-1"></i> 12 btls (Threshold 50)</td>
+                                <td class="py-4 px-4 text-rose-500">2026-05-21</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- [View] Distributor Orders -->
+            <div id="view-distributor-orders" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Hospital Purchase Orders</h2><p class="text-sm font-bold text-slate-400 mt-1">Distributors confirm orders, bind medicine batches, and ship.</p></div>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Order ID</th>
+                                <th class="py-4 px-4">Requestor</th>
+                                <th class="py-4 px-4">Date Created</th>
+                                <th class="py-4 px-4">Status</th>
+                                <th class="py-4 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <tr class="hover:bg-slate-50 border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">ORD-2026-001</td>
+                                <td class="py-4 px-4">H-01 (Main Branch)</td>
+                                <td class="py-4 px-4">2026-05-22</td>
+                                <td class="py-4 px-4"><span class="bg-soft-yellow text-white px-3 py-1.5 rounded-full text-xs shadow-sm">Pending</span></td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs hover:bg-slate-700 shadow-sm">Enter Batch & Ship</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- [View] Pharmacist Audit & Dispense -->
+            <div id="view-pharmacist-audit" class="view-section hidden h-full flex flex-col">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+                    <div class="flex justify-between items-end mb-6">
+                        <div><h2 class="text-2xl font-extrabold text-slate-900">Dispensing & Audit Workspace</h2><p class="text-sm font-bold text-slate-400 mt-1">Verify Prescription, Contain, and Payment status. Dispensing triggers stock deduction.</p></div>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                                <th class="py-4 px-4">Prescription ID</th>
+                                <th class="py-4 px-4">Patient</th>
+                                <th class="py-4 px-4">Medication Details</th>
+                                <th class="py-4 px-4">Payment Status</th>
+                                <th class="py-4 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold text-slate-700">
+                            <!-- Normal Row -->
+                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                <td class="py-4 px-4 font-mono text-slate-500">PR-99201</td>
+                                <td class="py-4 px-4">John Doe</td>
+                                <td class="py-4 px-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">Amoxicillin Qty:2</span></td>
+                                <td class="py-4 px-4"><span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs flex items-center w-max"><i class="ph-fill ph-check-circle mr-1"></i> Paid</span></td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs hover:bg-slate-700 shadow-sm">Confirm & Dispense</button>
+                                </td>
+                            </tr>
+                            <!-- ★ Blocked Unpaid Row ★ -->
+                            <tr class="bg-rose-50/50 border-b border-rose-100">
+                                <td class="py-4 px-4 font-mono text-rose-500">PR-99202</td>
+                                <td class="py-4 px-4 text-rose-900">Jane Smith</td>
+                                <td class="py-4 px-4"><span class="bg-white text-slate-600 border border-rose-200 px-2 py-1 rounded text-xs">Ibuprofen Qty:1</span></td>
+                                <td class="py-4 px-4">
+                                    <span class="bg-rose-500 text-white px-3 py-1.5 rounded-full text-xs flex items-center w-max shadow-sm shadow-rose-500/30 animate-pulse">
+                                        <i class="ph-bold ph-warning mr-1"></i> Unpaid
+                                    </span>
+                                </td>
+                                <td class="py-4 px-4 text-right">
+                                    <button class="bg-slate-200 text-slate-400 px-4 py-2 rounded-xl text-xs cursor-not-allowed flex items-center justify-end w-full" disabled>
+                                        <i class="ph-bold ph-prohibit mr-1"></i> Blocked: Do Not Dispense
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- [View] Doctor Prescribe -->
+            <div id="view-doctor-prescribe" class="view-section hidden h-full flex gap-6">
+                <!-- Left Form -->
+                <div class="w-1/3 bg-white rounded-[2.5rem] p-8 shadow-sm flex flex-col">
+                    <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4"><i class="ph-bold ph-pencil-simple text-2xl"></i></div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 mb-6">New Prescription</h2>
+                    <div class="space-y-4 flex-1">
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Search Patient</label><input type="text" placeholder="PA-001" class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-200 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Department</label><select class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 outline-none"><option>Internal Medicine</option><option>Surgery</option></select></div>
+                        <div><label class="block text-xs font-bold text-slate-500 mb-1">Clinical Diagnosis</label><textarea rows="2" class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 outline-none resize-none" placeholder="Enter symptoms..."></textarea></div>
+                    </div>
+                    <button class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-md hover:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-check-circle mr-2 text-lg"></i> Submit Prescription</button>
+                    <p class="text-[10px] text-center text-soft-orange font-bold mt-3">* Submission writes to Prescription & Contain tables</p>
+                </div>
+                <!-- Right Form -->
+                <div class="w-2/3 bg-white rounded-[2.5rem] p-8 shadow-sm flex flex-col">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4">Prescription Details (Contain)</h2>
+                    <div class="relative mb-6">
+                        <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="text" placeholder="Search medicine name..." class="w-full bg-white border-2 border-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none shadow-sm">
+                    </div>
+                    <div class="flex-1 bg-slate-50 rounded-2xl border border-slate-100 p-2 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead><tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-200"><th class="py-3 px-4">Medicine</th><th class="py-3 px-4">Unit Price</th><th class="py-3 px-4 text-center">Quantity</th></tr></thead>
+                            <tbody class="text-sm font-bold text-slate-700">
+                                <tr class="border-b border-slate-100 bg-white rounded-xl shadow-sm">
+                                    <td class="py-3 px-4 rounded-l-xl text-slate-900">Amoxicillin Capsules</td><td class="py-3 px-4">$ 12.50</td>
+                                    <td class="py-3 px-4 rounded-r-xl text-center">
+                                        <div class="inline-flex items-center bg-slate-50 rounded-lg p-1 border border-slate-200"><button class="w-6 h-6 rounded bg-white shadow-sm">-</button><span class="w-8 text-center text-slate-900">2</span><button class="w-6 h-6 rounded bg-white shadow-sm">+</button></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generic Placeholder View -->
+            <div id="view-generic" class="view-section hidden h-full">
+                <div class="w-full h-full bg-white rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center border border-slate-50 relative overflow-hidden">
+                    <div class="w-24 h-24 rounded-[2rem] bg-slate-100 flex items-center justify-center mb-6 z-10"><i id="generic-icon" class="ph-fill ph-check-square-offset text-5xl text-slate-400"></i></div>
+                    <h2 id="generic-title" class="text-3xl font-extrabold text-slate-900 z-10 mb-2">Loading...</h2>
+                    <p id="generic-desc" class="text-sm font-bold text-slate-500 z-10 mb-8 max-w-md text-center">Feature Description</p>
+                    <div class="bg-blue-50 border border-blue-100 text-blue-600 rounded-2xl px-6 py-3 font-bold text-sm z-10">Frontend skeleton is ready. Awaiting backend SQL endpoints.</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // ================= 1. Strict Routing Config (10 Pages mapped) =================
+        const roleConfig = {
+            'Admin': {
+                name: 'System Admin', label: 'Admin', icon: 'ph-shield-check',
+                menus: [
+                    { id: 'admin-dashboard', name: 'Dashboard', view: 'admin-dashboard', icon: 'ph-chart-bar', desc: 'Overview of all database metrics' },
+                    { id: 'admin-users', name: 'User Management', view: 'admin-users', icon: 'ph-users-three', desc: 'Operate on Doctor, Pharmacist tables' },
+                    { id: 'admin-medicines', name: 'Medicines', view: 'admin-medicines', icon: 'ph-pill', desc: 'Operate on Medicine table' },
+                    { id: 'admin-store', name: 'Inventory', view: 'pharmacist-inventory', icon: 'ph-package', desc: 'View Store table to monitor inventory' },
+                    { id: 'admin-orders', name: 'Orders', view: 'distributor-orders', icon: 'ph-receipt', desc: 'Check Hospital_Order procurement progress' }
+                ]
+            },
+            'Doctor': {
+                name: 'Dr. Wei', label: 'Doctor', icon: 'ph-stethoscope',
+                menus: [
+                    { id: 'doc-prescribe', name: 'Prescribe', view: 'doctor-prescribe', icon: 'ph-pencil-simple', desc: 'Operate on Prescription and Contain tables' },
+                    { id: 'doc-medicines', name: 'Directory', view: 'admin-medicines', icon: 'ph-pill', desc: 'Read-only access to Medicine dictionary' },
+                    { id: 'doc-patients', name: 'Patients', view: 'generic', icon: 'ph-users', desc: 'View Patient table (pa_name, pa_allergy)' }
+                ]
+            },
+            'Pharmacist': {
+                name: 'Jane (Pharm)', label: 'Pharmacist', icon: 'ph-first-aid',
+                menus: [
+                    { id: 'ph-audit', name: 'Audit', view: 'pharmacist-audit', icon: 'ph-check-square-offset', desc: 'Verify Payment status and deduct stock' },
+                    { id: 'ph-inventory', name: 'Inventory', view: 'pharmacist-inventory', icon: 'ph-package', desc: 'View Store inventory for current pharmacy' },
+                    { id: 'ph-batch', name: 'Batches', view: 'generic', icon: 'ph-stack', desc: 'View Warehouse and Medicine_Batch' }
+                ]
+            },
+            'Distributor': {
+                name: 'SF Meds', label: 'Distributor', icon: 'ph-truck',
+                menus: [
+                    { id: 'dist-orders', name: 'Orders', view: 'distributor-orders', icon: 'ph-receipt', desc: 'View Hospital_Order, mark as delivered' },
+                    { id: 'dist-shipments', name: 'Shipments', view: 'generic', icon: 'ph-package-export', desc: 'Create Medicine_Batch and dispatch' }
+                ]
+            }
+        };
+
+        // ================= 2. Login and View Switching =================
+        function handleLogin() {
+            const roleSelect = document.getElementById('login-role-select').value;
+            const overlay = document.getElementById('login-overlay');
+            overlay.classList.add('fade-out');
+            
+            setTimeout(() => {
+                const app = document.getElementById('main-app');
+                app.classList.remove('opacity-0');
+                app.classList.add('fade-in');
+                overlay.style.display = 'none';
+                
+                initRole(roleSelect);
+                if(roleSelect === 'Admin') renderAdminChart();
+            }, 500);
+        }
+
+        function logout() {
+            document.getElementById('role-dropdown').classList.add('hidden');
+            const overlay = document.getElementById('login-overlay');
+            const app = document.getElementById('main-app');
+            
+            app.classList.remove('fade-in');
+            app.classList.add('opacity-0');
+            
+            setTimeout(() => {
+                overlay.style.display = 'flex';
+                overlay.classList.remove('fade-out');
+                overlay.classList.add('fade-in');
+            }, 300);
+        }
+
+        function initRole(roleKey) {
+            document.getElementById('role-dropdown').classList.add('hidden');
+            const config = roleConfig[roleKey];
+            
+            document.getElementById('user-greeting').innerText = config.name;
+            document.getElementById('user-role-label').innerText = config.label;
+            document.getElementById('user-icon').className = `ph-fill ${config.icon} text-2xl text-slate-700`;
+
+            const navContainer = document.getElementById('dynamic-nav');
+            navContainer.innerHTML = ''; 
+            
+            config.menus.forEach((menu, index) => {
+                const btn = document.createElement('a');
+                btn.href = '#';
+                const activeClass = index === 0 ? 'nav-active' : 'nav-inactive';
+                btn.className = `nav-item px-4 py-2 rounded-full text-sm flex items-center ${activeClass}`;
+                btn.innerHTML = `<span>${menu.name}</span>`;
+                
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('#dynamic-nav .nav-item').forEach(el => {
+                        el.classList.remove('nav-active'); el.classList.add('nav-inactive');
+                    });
+                    btn.classList.remove('nav-inactive'); btn.classList.add('nav-active');
+                    switchView(menu);
+                };
+                navContainer.appendChild(btn);
+            });
+
+            switchView(config.menus[0]);
+        }
+
+        function switchView(menuObj) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            
+            document.getElementById('page-main-title').innerText = menuObj.name;
+            document.getElementById('page-sub-title').innerText = "System Core View";
+
+            const specificView = document.getElementById(`view-${menuObj.view}`);
+            
+            if (specificView) {
+                specificView.classList.remove('hidden');
+                specificView.classList.add('fade-in');
+            } else {
+                const genericView = document.getElementById('view-generic');
+                document.getElementById('generic-icon').className = `ph-fill ${menuObj.icon} text-6xl text-blue-500/50`;
+                document.getElementById('generic-title').innerText = menuObj.name;
+                document.getElementById('generic-desc').innerText = "Underlying SQL Mapping: " + menuObj.desc;
+                genericView.classList.remove('hidden');
+                genericView.classList.add('fade-in');
+            }
+        }
+
+        // ================= 3. Admin Chart Render =================
+        function renderAdminChart() {
+            const ctx = document.getElementById('adminTrendChart');
+            if(!ctx) return;
+            const context = ctx.getContext('2d');
+            let gradient = context.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(137, 204, 231, 0.4)');
+            gradient.addColorStop(1, 'rgba(137, 204, 231, 0.0)');
+
+            new Chart(context, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Prescriptions Volume',
+                        data: [12000, 19000, 15000, 22000, 18000, 25000],
+                        borderColor: '#89cce7',
+                        backgroundColor: gradient,
+                        borderWidth: 4,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { border: {display: false}, grid: { color: '#f1f5f9' } },
+                        x: { border: {display: false}, grid: { display: false } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

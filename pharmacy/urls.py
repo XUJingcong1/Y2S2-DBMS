@@ -20,9 +20,21 @@ urlpatterns = [
     # =====================================================
 
     path(
+        'dashboard/',
+        views.dashboard_redirect,
+        name='dashboard_redirect'
+    ),
+
+    path(
         'admin/dashboard/',
         views.admin_dashboard,
         name='admin_dashboard'
+    ),
+
+    path(
+        'admin/statistics/api/',
+        views.admin_statistics_api,
+        name='admin_statistics_api'
     ),
 
     # =====================================================
@@ -69,6 +81,12 @@ urlpatterns = [
         name='admin_users_admins'
     ),
 
+    path(
+        'admin/suppliers/',
+        views.admin_suppliers,
+        name='admin_suppliers'
+    ),
+
     # =====================================================
     # DOCTOR MODULE
     # =====================================================
@@ -79,6 +97,12 @@ urlpatterns = [
         name='doctor_prescribe'
     ),
 
+    path(
+        'doctor/dashboard/',
+        views.doctor_prescribe,
+        name='doctor_dashboard'
+    ),
+
     # =====================================================
     # PHARMACIST MODULE
     # =====================================================
@@ -87,6 +111,12 @@ urlpatterns = [
         'pharmacist/inventory/',
         views.pharmacist_inventory,
         name='pharmacist_inventory'
+    ),
+
+    path(
+        'pharmacist/dashboard/',
+        views.pharmacist_inventory,
+        name='pharmacist_dashboard'
     ),
 
     path(
@@ -103,6 +133,18 @@ urlpatterns = [
         'distributor/orders/',
         views.distributor_orders,
         name='distributor_orders'
+    ),
+
+    path(
+        'distributor/dashboard/',
+        views.distributor_orders,
+        name='distributor_dashboard'
+    ),
+
+    path(
+        'distributor/shipments/',
+        views.distributor_shipments,
+        name='distributor_shipments'
     ),
 
 ]

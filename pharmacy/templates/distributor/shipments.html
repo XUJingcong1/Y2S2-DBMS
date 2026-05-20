@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="h-full flex flex-col gap-5">
+    <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-50">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-extrabold text-slate-900">Record Medicine Batch</h2>
+            <span class="text-xs font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full">{{ medicines|length }} medicines</span>
+        </div>
+        <form method="post" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+            {% csrf_token %}
+            <input name="mb_id" placeholder="Batch ID (optional)" class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <select name="m_id" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+                <option value="" selected disabled>Select medicine</option>
+                {% for medicine in medicines %}
+                    <option value="{{ medicine.m_id }}">{{ medicine.m_name }} ({{ medicine.m_id }})</option>
+                {% endfor %}
+            </select>
+            <input name="production_date" type="date" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <input name="expiration_date" type="date" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <button class="bg-slate-800 text-white px-5 py-3 rounded-xl text-sm font-black">Record Batch</button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <h2 class="text-xl font-extrabold text-slate-900 mb-4">Delivered / Shipping Orders</h2>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                        <th class="py-3 px-3">Order</th>
+                        <th class="py-3 px-3">Hospital</th>
+                        <th class="py-3 px-3">Quantity</th>
+                        <th class="py-3 px-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    {% for shipment in shipments %}
+                    <tr class="border-b border-slate-50">
+                        <td class="py-3 px-3 font-mono">{{ shipment.ho_id }}</td>
+                        <td class="py-3 px-3">{{ shipment.h_name }}</td>
+                        <td class="py-3 px-3">{{ shipment.quantity|default:"-" }}</td>
+                        <td class="py-3 px-3"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs">{{ shipment.ho_status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <h2 class="text-xl font-extrabold text-slate-900 mb-4">Recent Medicine Batches</h2>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                        <th class="py-3 px-3">Batch</th>
+                        <th class="py-3 px-3">Medicine</th>
+                        <th class="py-3 px-3">Production</th>
+                        <th class="py-3 px-3">Expiration</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    {% for batch in batches %}
+                    <tr class="border-b border-slate-50">
+                        <td class="py-3 px-3 font-mono">{{ batch.mb_id }}</td>
+                        <td class="py-3 px-3">{{ batch.m_name }}</td>
+                        <td class="py-3 px-3">{{ batch.production_date }}</td>
+                        <td class="py-3 px-3">{{ batch.expiration_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </div>
+</div>
+{% endblock %}

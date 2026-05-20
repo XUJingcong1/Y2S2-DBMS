@@ -82,6 +82,15 @@
 
         <!-- ================= View Render Area ================= -->
         <div class="flex-1 overflow-y-auto relative rounded-3xl pb-4">
+        {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for message in messages %}
+                    <div class="bg-white border border-emerald-100 text-emerald-700 rounded-2xl px-5 py-3 text-sm font-bold shadow-sm">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
         {% block content %}
         {% endblock %}
         <!-- Generic Placeholder View -->
@@ -130,6 +139,11 @@
                 name: 'Distributors',
                 url: '/admin/users/distributors/',
                 icon: 'ph-truck'
+            },
+            {
+                name: 'Suppliers',
+                url: '/admin/suppliers/',
+                icon: 'ph-warehouse'
             }
         ]
     },
@@ -189,6 +203,11 @@
                 name: 'Orders',
                 url: '/distributor/orders/',
                 icon: 'ph-receipt'
+            },
+            {
+                name: 'Shipments',
+                url: '/distributor/shipments/',
+                icon: 'ph-package'
             }
         ]
     }
@@ -231,11 +250,27 @@
                         borderWidth: 4,
                         fill: true,
                         tension: 0.4
+                    }, {
+                        label: 'Inventory Trend',
+                        data: window.inventoryData || [],
+                        borderColor: '#a0d4a4',
+                        backgroundColor: 'rgba(160, 212, 164, 0.12)',
+                        borderWidth: 3,
+                        fill: false,
+                        tension: 0.35
+                    }, {
+                        label: 'Expired Batches',
+                        data: window.expiredData || [],
+                        borderColor: '#f16847',
+                        backgroundColor: 'rgba(241, 104, 71, 0.12)',
+                        borderWidth: 3,
+                        fill: false,
+                        tension: 0.35
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: true, labels: { boxWidth: 10, font: { weight: 'bold' } } } },
                     scales: {
                         y: { border: {display: false}, grid: { color: '#f1f5f9' } },
                         x: { border: {display: false}, grid: { display: false } }
@@ -247,13 +282,16 @@
             const config = roleConfig[role];
             document.getElementById('user-greeting').innerText = config.name;
             document.getElementById('user-role-label').innerText = config.label;
+            document.getElementById('page-sub-title').innerText = `${config.label} Workspace`;
             const nav = document.getElementById('dynamic-nav');
             nav.innerHTML = '';
             nav.classList.remove('hidden');
+            const currentPath = window.location.pathname;
             config.menus.forEach(menu => {
             const button = document.createElement('button');
+            const isActive = currentPath === menu.url;
             button.className =
-                'nav-item nav-inactive px-4 py-2 rounded-full text-sm flex items-center gap-2';
+                `nav-item ${isActive ? 'nav-active' : 'nav-inactive'} px-4 py-2 rounded-full text-sm flex items-center gap-2`;
             button.innerHTML = `
                 <i class="ph-fill ${menu.icon}"></i>
                 <span>${menu.name}</span>
@@ -262,11 +300,15 @@
             window.location.href = menu.url;
             };
             nav.appendChild(button);
+            if (isActive) {
+                document.getElementById('page-main-title').innerText = menu.name;
+            }
             });
         }
         if (document.getElementById('adminTrendChart')) {
             renderAdminChart();
         }
+        initRole('{{ request.session.role|default:"Admin" }}');
     </script>
 </body>
 </html>

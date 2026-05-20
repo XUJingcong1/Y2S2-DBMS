@@ -4,9 +4,22 @@
 
 <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
 
-    <h2 class="text-2xl font-extrabold text-slate-900 mb-6">
-        Pharmacist Management
-    </h2>
+    <div class="flex justify-between items-end mb-6">
+        <h2 class="text-2xl font-extrabold text-slate-900">Pharmacist Management</h2>
+        <form method="post" class="grid grid-cols-2 xl:grid-cols-7 gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <input name="ph_id" placeholder="ID" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="ph_firstname" placeholder="First" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="ph_lastname" placeholder="Last" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="ph_phone1" placeholder="Phone 1" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="ph_phone2" placeholder="Phone 2" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <select name="p_id" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                {% for pharmacy in pharmacies %}<option value="{{ pharmacy.p_id }}">{{ pharmacy.p_id }}</option>{% endfor %}
+            </select>
+            <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
+        </form>
+    </div>
 
     <table class="w-full text-left border-collapse">
 
@@ -17,6 +30,7 @@
                 <th class="py-4 px-4">Name</th>
                 <th class="py-4 px-4">Phone</th>
                 <th class="py-4 px-4">Pharmacy</th>
+                <th class="py-4 px-4 text-right">Actions</th>
 
             </tr>
         </thead>
@@ -32,8 +46,8 @@
                 </td>
 
                 <td class="py-4 px-4">
-                    {{ pharmacist.ph_first_name }}
-                    {{ pharmacist.ph_last_name }}
+                    {{ pharmacist.ph_firstname }}
+                    {{ pharmacist.ph_lastname }}
                 </td>
 
                 <td class="py-4 px-4">
@@ -41,7 +55,16 @@
                 </td>
 
                 <td class="py-4 px-4">
-                    {{ pharmacist.pharmacy }}
+                    {{ pharmacist.p_id }}
+                </td>
+
+                <td class="py-4 px-4 text-right">
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="ph_id" value="{{ pharmacist.ph_id }}">
+                        <button class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg text-xs">Delete</button>
+                    </form>
                 </td>
 
             </tr>

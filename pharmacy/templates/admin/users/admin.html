@@ -4,9 +4,17 @@
 
 <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
 
-    <h2 class="text-2xl font-extrabold text-slate-900 mb-6">
-        Admin Management
-    </h2>
+    <div class="flex justify-between items-end mb-6">
+        <h2 class="text-2xl font-extrabold text-slate-900">Admin Management</h2>
+        <form method="post" class="grid grid-cols-4 gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <input name="admin_id" placeholder="ID" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="admin_name" placeholder="Name" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <input name="admin_password" placeholder="Password" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+            <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
+        </form>
+    </div>
 
     <table class="w-full text-left border-collapse">
 
@@ -15,6 +23,7 @@
 
                 <th class="py-4 px-4">Admin ID</th>
                 <th class="py-4 px-4">Name</th>
+                <th class="py-4 px-4 text-right">Actions</th>
 
             </tr>
         </thead>
@@ -31,6 +40,15 @@
 
                 <td class="py-4 px-4">
                     {{ admin.admin_name }}
+                </td>
+
+                <td class="py-4 px-4 text-right">
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="admin_id" value="{{ admin.admin_id }}">
+                        <button class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg text-xs">Delete</button>
+                    </form>
                 </td>
 
             </tr>

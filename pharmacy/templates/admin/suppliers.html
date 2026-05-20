@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="h-full flex flex-col gap-5">
+    <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-50">
+        <div class="flex justify-between items-end gap-4">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Supplier Management</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">Manage distributor accounts and review supply / delivery records.</p>
+            </div>
+            <form method="post" class="grid grid-cols-2 xl:grid-cols-5 gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <input name="d_id" placeholder="ID" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="d_name" placeholder="Name" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="d_address" placeholder="Address" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="d_password" placeholder="Password" type="number" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <h3 class="text-lg font-extrabold text-slate-900 mb-4">Distributors</h3>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                        <th class="py-3 px-3">ID</th>
+                        <th class="py-3 px-3">Name</th>
+                        <th class="py-3 px-3">Address</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    {% for distributor in distributors %}
+                    <tr class="border-b border-slate-50">
+                        <td class="py-3 px-3 font-mono">{{ distributor.d_id }}</td>
+                        <td class="py-3 px-3">{{ distributor.d_name }}</td>
+                        <td class="py-3 px-3 text-slate-500">{{ distributor.d_address }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <h3 class="text-lg font-extrabold text-slate-900 mb-4">Supply / Delivery Records</h3>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                        <th class="py-3 px-3">Order</th>
+                        <th class="py-3 px-3">Hospital</th>
+                        <th class="py-3 px-3">Distributor</th>
+                        <th class="py-3 px-3">Qty</th>
+                        <th class="py-3 px-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    {% for record in records %}
+                    <tr class="border-b border-slate-50">
+                        <td class="py-3 px-3 font-mono">{{ record.ho_id }}</td>
+                        <td class="py-3 px-3">{{ record.h_name }}</td>
+                        <td class="py-3 px-3">{{ record.d_name }}</td>
+                        <td class="py-3 px-3">{{ record.quantity }}</td>
+                        <td class="py-3 px-3"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs">{{ record.ho_status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </div>
+</div>
+{% endblock %}

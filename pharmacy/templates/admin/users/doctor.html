@@ -18,9 +18,20 @@
                 </p>
             </div>
 
-            <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold shadow-md hover:bg-slate-700 flex items-center">
-                Add Doctor
-            </button>
+            <form method="post" class="grid grid-cols-2 xl:grid-cols-8 gap-2 w-full xl:w-auto">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <input name="dc_id" placeholder="ID" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="dc_first_name" placeholder="First" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="dc_last_name" placeholder="Last" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="dc_department" placeholder="Department" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="dc_phone1" placeholder="Phone 1" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <input name="dc_phone2" placeholder="Phone 2" required class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                <select name="h_id" class="bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold">
+                    {% for hospital in hospitals %}<option value="{{ hospital.h_id }}">{{ hospital.h_id }}</option>{% endfor %}
+                </select>
+                <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
+            </form>
 
         </div>
 
@@ -87,13 +98,14 @@
 
                     <td class="py-4 px-4 text-right">
 
-                        <button class="text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg text-xs mr-2">
-                            Edit
-                        </button>
-
-                        <button class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg text-xs">
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="dc_id" value="{{ doctor.dc_id }}">
+                            <button class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg text-xs">
                             Delete
-                        </button>
+                            </button>
+                        </form>
 
                     </td>
 

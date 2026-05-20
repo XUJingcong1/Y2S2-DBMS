@@ -2,7 +2,7 @@
 
 {% block content %}
 <!-- [View] Pharmacist / Admin Inventory -->
-            <div id="view-pharmacist-inventory" class="view-section hidden h-full flex flex-col">
+            <div id="view-pharmacist-inventory" class="view-section h-full flex flex-col">
                 <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
                     <div class="flex justify-between items-end mb-6">
                         <div><h2 class="text-2xl font-extrabold text-slate-900">Pharmacy Inventory Ledger</h2><p class="text-sm font-bold text-slate-400 mt-1">Low stock automatically highlighted to ensure dispensing safety.</p></div>
@@ -18,22 +18,15 @@
                             </tr>
                         </thead>
                         <tbody class="text-sm font-bold text-slate-700">
-                            <!-- Normal Stock -->
-                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                                <td class="py-4 px-4 font-mono text-slate-500">{{ store.str_id }}</td>
-                                <td class="py-4 px-4">{{ store.pharmacy.ph_name }}</td>
-                                <td class="py-4 px-4">{{ store.medicine.m_name }}</td>
-                                <td class="py-4 px-4 text-emerald-600 font-black">{{ store.quantity }}</td>
-                                <td class="py-4 px-4 text-slate-500">{{ store.last_update }}</td>
+                            {% for store in stores %}
+                            <tr class="{% if store.inventory < 50 %}bg-rose-50/50 border-b border-rose-100{% else %}hover:bg-slate-50 transition-colors border-b border-slate-50{% endif %}">
+                                <td class="py-4 px-4 font-mono {% if store.inventory < 50 %}text-rose-500{% else %}text-slate-500{% endif %}">{{ store.s_id }}</td>
+                                <td class="py-4 px-4">{{ store.p_id }}</td>
+                                <td class="py-4 px-4">{{ store.m_name }}</td>
+                                <td class="py-4 px-4 {% if store.inventory < 50 %}text-rose-600{% else %}text-emerald-600{% endif %} font-black">{{ store.inventory }}</td>
+                                <td class="py-4 px-4 text-slate-500">{{ store.store_date }}</td>
                             </tr>
-                            <!-- Warning Stock -->
-                            <tr class="bg-rose-50/50 border-b border-rose-100">
-                                <td class="py-4 px-4 font-mono text-rose-500">STR-002</td>
-                                <td class="py-4 px-4 text-rose-900">PH-Emerg (Emergency)</td>
-                                <td class="py-4 px-4 text-rose-900">Ibuprofen Suspension</td>
-                                <td class="py-4 px-4 text-rose-600 font-black flex items-center"><i class="ph-bold ph-warning mr-1"></i> 12 btls (Threshold 50)</td>
-                                <td class="py-4 px-4 text-rose-500">2026-05-21</td>
-                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>

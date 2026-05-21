@@ -248,34 +248,19 @@
             gradient.addColorStop(0, 'rgba(137, 204, 231, 0.4)');
             gradient.addColorStop(1, 'rgba(137, 204, 231, 0.0)');
 
+            const chartColor = window.chartMetricColor || '#89cce7';
             new Chart(context, {
                 type: 'line',
                 data: {
                     labels: window.chartLabels,
                     datasets: [{
-                        label: 'Prescriptions Volume',
+                        label: window.chartMetricLabel || 'Prescriptions Volume',
                         data: window.chartData,
-                        borderColor: '#89cce7',
+                        borderColor: chartColor,
                         backgroundColor: gradient,
                         borderWidth: 4,
                         fill: true,
                         tension: 0.4
-                    }, {
-                        label: 'Inventory Trend',
-                        data: window.inventoryData || [],
-                        borderColor: '#a0d4a4',
-                        backgroundColor: 'rgba(160, 212, 164, 0.12)',
-                        borderWidth: 3,
-                        fill: false,
-                        tension: 0.35
-                    }, {
-                        label: 'Expired Batches',
-                        data: window.expiredData || [],
-                        borderColor: '#f16847',
-                        backgroundColor: 'rgba(241, 104, 71, 0.12)',
-                        borderWidth: 3,
-                        fill: false,
-                        tension: 0.35
                     }]
                 },
                 options: {

@@ -59,6 +59,12 @@
 
         </div>
 
+        <form method="get" class="bg-slate-50 rounded-[1.5rem] p-4 mb-5 flex gap-3">
+            <input name="q" value="{{ query }}" placeholder="Search doctor ID, name, department, phone, or hospital"
+                   class="flex-1 bg-white rounded-full px-5 py-3 text-sm font-bold outline-none">
+            <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search</button>
+        </form>
+
         <table class="w-full text-left border-collapse">
 
             <thead>
@@ -68,6 +74,7 @@
                     <th class="py-4 px-4">Name</th>
                     <th class="py-4 px-4">Department</th>
                     <th class="py-4 px-4">Phone</th>
+                    <th class="py-4 px-4">Hospital</th>
                     <th class="py-4 px-4 text-right">Actions</th>
 
                 </tr>
@@ -96,6 +103,10 @@
                         {{ doctor.dc_phone1 }}
                     </td>
 
+                    <td class="py-4 px-4">
+                        {{ doctor.h_id }}
+                    </td>
+
                     <td class="py-4 px-4 text-right">
 
                         <form method="post" class="inline">
@@ -109,6 +120,28 @@
 
                     </td>
 
+                </tr>
+
+                <tr class="border-b border-slate-100 bg-slate-50/60">
+                    <td colspan="6" class="py-3 px-4">
+                        <form method="post" class="grid grid-cols-2 xl:grid-cols-8 gap-2 items-center">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update">
+                            <input type="hidden" name="dc_id" value="{{ doctor.dc_id }}">
+                            <input name="dc_first_name" value="{{ doctor.dc_first_name }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <input name="dc_last_name" value="{{ doctor.dc_last_name }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <input name="dc_department" value="{{ doctor.dc_department }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <input name="dc_phone1" value="{{ doctor.dc_phone1 }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <input name="dc_phone2" value="{{ doctor.dc_phone2 }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <select name="h_id" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                                {% for hospital in hospitals %}
+                                    <option value="{{ hospital.h_id }}" {% if hospital.h_id == doctor.h_id %}selected{% endif %}>{{ hospital.h_id }}</option>
+                                {% endfor %}
+                            </select>
+                            <input name="dc_password" placeholder="Password unchanged" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                            <button class="text-blue-500 bg-blue-50 px-3 py-2 rounded-lg text-xs font-bold">Save Edit</button>
+                        </form>
+                    </td>
                 </tr>
 
                 {% endfor %}

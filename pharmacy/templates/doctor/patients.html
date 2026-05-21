@@ -24,7 +24,6 @@
                     <th class="py-4 px-4">Patient ID</th>
                     <th class="py-4 px-4">Name</th>
                     <th class="py-4 px-4">Age</th>
-                    <th class="py-4 px-4">Gender</th>
                     <th class="py-4 px-4">Department</th>
                     <th class="py-4 px-4">Allergy</th>
                 </tr>
@@ -35,7 +34,6 @@
                         <td class="py-4 px-4 font-mono text-slate-500">{{ patient.patient_id }}</td>
                         <td class="py-4 px-4 text-slate-900">{{ patient.pat_name }}</td>
                         <td class="py-4 px-4">{{ patient.pat_age }}</td>
-                        <td class="py-4 px-4">{{ patient.pat_gender }}</td>
                         <td class="py-4 px-4 text-slate-500">{{ patient.pat_department|default:"-" }}</td>
                         <td class="py-4 px-4">
                             {% if patient.pat_allergy %}
@@ -47,7 +45,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="py-8 px-4 text-center text-slate-400 font-bold">
+                        <td colspan="5" class="py-8 px-4 text-center text-slate-400 font-bold">
                             No assigned patients found.
                         </td>
                     </tr>

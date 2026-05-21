@@ -7,16 +7,31 @@
         <div class="flex justify-between items-end gap-4 mb-4">
             <div>
                 <h2 class="text-2xl font-extrabold text-slate-900">Medicine Batches</h2>
-                <p class="text-sm font-bold text-slate-400 mt-1">Expired and soon-expiring batches are highlighted.</p>
+                <p class="text-sm font-bold text-slate-400 mt-1">Lookup medicine batches by medicine ID or name and review expiration status.</p>
             </div>
-            <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ batches|length }} batches</span>
+            <div class="flex items-center gap-2">
+                <span class="bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-xs font-black">Project today: {{ project_today }}</span>
+                <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ batches|length }} batches</span>
+            </div>
         </div>
 
         <form method="get" class="flex gap-3 mb-4">
-            <input name="medicine_q" value="{{ medicine_query }}" placeholder="Search medicine before adding a batch"
+            <input name="q" value="{{ query }}" placeholder="Search by medicine name or medicine ID"
                    class="flex-1 bg-slate-50 rounded-full px-5 py-3 text-sm font-bold outline-none">
-            <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search Medicine</button>
+            <select name="status" class="bg-slate-50 rounded-full px-5 py-3 text-sm font-bold outline-none">
+                <option value="" {% if not status %}selected{% endif %}>All statuses</option>
+                <option value="Near Expiry" {% if status == "Near Expiry" %}selected{% endif %}>Near Expiry</option>
+                <option value="Expired" {% if status == "Expired" %}selected{% endif %}>Expired</option>
+                <option value="Valid" {% if status == "Valid" %}selected{% endif %}>Valid</option>
+            </select>
+            <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search Batches</button>
         </form>
+
+        <div class="flex flex-wrap gap-2 mb-4">
+            <span class="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-full text-xs font-bold">Expired: expiration before {{ project_today }}</span>
+            <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold">Near Expiry: {{ project_today }} through 2025-07-29, shown first</span>
+            <span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs font-bold">Valid: after 2025-07-29</span>
+        </div>
 
         <form method="post" class="grid grid-cols-1 md:grid-cols-5 gap-3">
             {% csrf_token %}
@@ -38,7 +53,8 @@
             <thead>
                 <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
                     <th class="py-4 px-4">Batch ID</th>
-                    <th class="py-4 px-4">Medicine</th>
+                    <th class="py-4 px-4">Medicine ID</th>
+                    <th class="py-4 px-4">Medicine Name</th>
                     <th class="py-4 px-4">Production Date</th>
                     <th class="py-4 px-4">Expiration Date</th>
                     <th class="py-4 px-4">Days Left</th>
@@ -47,22 +63,20 @@
             </thead>
             <tbody class="text-sm font-bold text-slate-700">
                 {% for batch in batches %}
-                    <tr class="{% if batch.days_left < 0 %}bg-rose-50/70 border-b border-rose-100{% elif batch.days_left <= expiry_warning_days %}bg-amber-50/70 border-b border-amber-100{% else %}hover:bg-slate-50 transition-colors border-b border-slate-50{% endif %}">
-                        <td class="py-4 px-4 font-mono {% if batch.days_left < 0 %}text-rose-500{% else %}text-slate-500{% endif %}">{{ batch.mb_id }}</td>
-                        <td class="py-4 px-4">
-                            {{ batch.m_name }}
-                            <span class="block text-[10px] text-slate-400 font-black">{{ batch.m_id }}</span>
-                        </td>
+                    <tr class="{% if batch.batch_status == 'Expired' %}bg-rose-50/70 border-b border-rose-100{% elif batch.batch_status == 'Near Expiry' %}bg-amber-50/70 border-b border-amber-100{% else %}hover:bg-slate-50 transition-colors border-b border-slate-50{% endif %}">
+                        <td class="py-4 px-4 font-mono {% if batch.batch_status == 'Expired' %}text-rose-500{% else %}text-slate-500{% endif %}">{{ batch.mb_id }}</td>
+                        <td class="py-4 px-4 font-mono text-slate-500">{{ batch.m_id }}</td>
+                        <td class="py-4 px-4 text-slate-900">{{ batch.m_name }}</td>
                         <td class="py-4 px-4 text-slate-500">{{ batch.production_date }}</td>
                         <td class="py-4 px-4 text-slate-500">{{ batch.expiration_date }}</td>
-                        <td class="py-4 px-4 font-black {% if batch.days_left < 0 %}text-rose-600{% elif batch.days_left <= expiry_warning_days %}text-amber-600{% else %}text-emerald-600{% endif %}">
+                        <td class="py-4 px-4 font-black {% if batch.batch_status == 'Expired' %}text-rose-600{% elif batch.batch_status == 'Near Expiry' %}text-amber-600{% else %}text-emerald-600{% endif %}">
                             {{ batch.days_left }}
                         </td>
                         <td class="py-4 px-4">
-                            {% if batch.days_left < 0 %}
+                            {% if batch.batch_status == "Expired" %}
                                 <span class="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-full text-xs">Expired</span>
-                            {% elif batch.days_left <= expiry_warning_days %}
-                                <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs">Expiring Soon</span>
+                            {% elif batch.batch_status == "Near Expiry" %}
+                                <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs">Near Expiry</span>
                             {% else %}
                                 <span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs">Valid</span>
                             {% endif %}
@@ -70,7 +84,9 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="py-8 px-4 text-center text-slate-400 font-bold">No batch records found.</td>
+                        <td colspan="7" class="py-8 px-4 text-center text-slate-400 font-bold">
+                            No medicine batches match this search.
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>

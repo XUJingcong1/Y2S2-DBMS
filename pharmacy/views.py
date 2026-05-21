@@ -8,6 +8,25 @@ from django.views.decorators.http import require_POST
 LOW_STOCK_LIMIT = 50
 AVAILABLE_YEARS = [2023, 2024, 2025]
 DEFAULT_STATS_YEAR = 2024
+PROJECT_TODAY = "2025-04-30"
+PROJECT_TIMESTAMP = 1745985600
+CHART_METRICS = {
+    "prescriptions": {
+        "label": "Prescriptions Volume",
+        "color": "#89cce7",
+        "data_key": "prescription_data",
+    },
+    "inventory": {
+        "label": "Inventory Trend",
+        "color": "#a0d4a4",
+        "data_key": "inventory_data",
+    },
+    "expired": {
+        "label": "Expired Batches",
+        "color": "#f16847",
+        "data_key": "expired_data",
+    },
+}
 
 
 # Helper functions.
@@ -25,19 +44,27 @@ def dictfetchone(cursor):
 
 def fetch_all(sql, params=None):
     with connection.cursor() as cursor:
+        use_project_clock(cursor)
         cursor.execute(sql, params or [])
         return dictfetchall(cursor)
 
 
 def fetch_one(sql, params=None):
     with connection.cursor() as cursor:
+        use_project_clock(cursor)
         cursor.execute(sql, params or [])
         return dictfetchone(cursor)
 
 
 def execute_sql(sql, params=None):
     with connection.cursor() as cursor:
+        use_project_clock(cursor)
         cursor.execute(sql, params or [])
+
+
+def use_project_clock(cursor):
+    cursor.execute("SET time_zone = '+08:00'")
+    cursor.execute("SET timestamp = %s", [PROJECT_TIMESTAMP])
 
 
 def readable_database_error(error):
@@ -62,6 +89,22 @@ def get_stats_year(request):
     if year not in AVAILABLE_YEARS:
         year = DEFAULT_STATS_YEAR
     return year
+
+
+def get_chart_metric(request):
+    metric = request.GET.get("chart_metric", "prescriptions")
+    if metric not in CHART_METRICS:
+        metric = "prescriptions"
+    return metric
+
+
+def stats_cutoff(column, year):
+    project_year = int(PROJECT_TODAY[:4])
+    if year == project_year:
+        return f"AND {column} <= %s", [PROJECT_TODAY]
+    if year > project_year:
+        return "AND 1 = 0", []
+    return "", []
 
 
 def next_code(table, column, prefix, width):
@@ -97,13 +140,22 @@ def dashboard_redirect(request):
 
 def admin_dashboard(request):
     year = get_stats_year(request)
+    chart_metric = get_chart_metric(request)
     stats = build_admin_statistics(year)
+    chart_config = CHART_METRICS[chart_metric]
     context = {
         "prescription_count": stats["today_prescriptions"],
         "low_stock_count": stats["low_stock_count"] + stats["expiring_batch_count"],
         "pending_orders": stats["pending_orders"],
         "chart_labels": stats["labels"],
-        "chart_data": stats["prescription_data"],
+        "chart_data": stats[chart_config["data_key"]],
+        "chart_metric": chart_metric,
+        "chart_metric_label": chart_config["label"],
+        "chart_metric_color": chart_config["color"],
+        "chart_metrics": [
+            {"key": key, "label": value["label"]}
+            for key, value in CHART_METRICS.items()
+        ],
         "inventory_data": stats["inventory_data"],
         "expired_data": stats["expired_data"],
         "latest_orders": stats["latest_orders"],
@@ -111,13 +163,21 @@ def admin_dashboard(request):
         "expiring_batches": stats["expiring_batches"],
         "stats_year": year,
         "available_years": AVAILABLE_YEARS,
+        "project_today": stats["project_today"],
     }
     return render(request, "admin/dashboard.html", context)
 
 
 def admin_statistics_api(request):
     year = get_stats_year(request)
-    return JsonResponse(build_admin_statistics(year))
+    stats = build_admin_statistics(year)
+    chart_metric = get_chart_metric(request)
+    chart_config = CHART_METRICS[chart_metric]
+    stats["chart_metric"] = chart_metric
+    stats["chart_metric_label"] = chart_config["label"]
+    stats["chart_metric_color"] = chart_config["color"]
+    stats["chart_data"] = stats[chart_config["data_key"]]
+    return JsonResponse(stats)
 
 
 def build_admin_statistics(year):
@@ -125,8 +185,9 @@ def build_admin_statistics(year):
         """
         SELECT COUNT(*) AS total
         FROM prescription
-        WHERE pr_date = CURDATE()
-        """
+        WHERE pr_date = %s
+        """,
+        [PROJECT_TODAY],
     )
     low_stock = fetch_one(
         """
@@ -140,8 +201,9 @@ def build_admin_statistics(year):
         """
         SELECT COUNT(*) AS total
         FROM medicine_batch
-        WHERE expiration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)
-        """
+        WHERE expiration_date BETWEEN %s AND DATE_ADD(%s, INTERVAL 90 DAY)
+        """,
+        [PROJECT_TODAY, PROJECT_TODAY],
     )
     pending_orders = fetch_one(
         """
@@ -151,32 +213,38 @@ def build_admin_statistics(year):
         """
     )
 
+    prescription_cutoff, prescription_cutoff_params = stats_cutoff("pr_date", year)
     prescription_rows = fetch_all(
-        """
+        f"""
         SELECT MONTH(pr_date) AS month_no, COUNT(*) AS total
         FROM prescription
         WHERE YEAR(pr_date) = %s
+        {prescription_cutoff}
         GROUP BY MONTH(pr_date)
         """,
-        [year],
+        [year] + prescription_cutoff_params,
     )
+    inventory_cutoff, inventory_cutoff_params = stats_cutoff("store_date", year)
     inventory_rows = fetch_all(
-        """
+        f"""
         SELECT MONTH(store_date) AS month_no, SUM(inventory) AS total
         FROM store
         WHERE YEAR(store_date) = %s
+        {inventory_cutoff}
         GROUP BY MONTH(store_date)
         """,
-        [year],
+        [year] + inventory_cutoff_params,
     )
+    expired_cutoff, expired_cutoff_params = stats_cutoff("expiration_date", year)
     expired_rows = fetch_all(
-        """
+        f"""
         SELECT MONTH(expiration_date) AS month_no, COUNT(*) AS total
         FROM medicine_batch
         WHERE YEAR(expiration_date) = %s
+        {expired_cutoff}
         GROUP BY MONTH(expiration_date)
         """,
-        [year],
+        [year] + expired_cutoff_params,
     )
 
     latest_orders = fetch_all(
@@ -206,10 +274,11 @@ def build_admin_statistics(year):
         SELECT mb.mb_ID AS mb_id, m.m_name, mb.expiration_date
         FROM medicine_batch mb
         JOIN medicine m ON m.m_ID = mb.m_ID
-        WHERE mb.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)
+        WHERE mb.expiration_date BETWEEN %s AND DATE_ADD(%s, INTERVAL 90 DAY)
         ORDER BY mb.expiration_date ASC
         LIMIT 8
-        """
+        """,
+        [PROJECT_TODAY, PROJECT_TODAY],
     )
 
     labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -220,6 +289,7 @@ def build_admin_statistics(year):
         "low_stock_count": low_stock["total"],
         "expiring_batch_count": expiring["total"],
         "pending_orders": pending_orders["total"],
+        "project_today": PROJECT_TODAY,
         "prescription_data": month_series(prescription_rows),
         "inventory_data": month_series(inventory_rows),
         "expired_data": month_series(expired_rows),
@@ -306,18 +376,35 @@ def doctor_users(request):
     if request.method == "POST":
         handle_doctor_post(request)
         return redirect("doctor_users")
-    doctors = fetch_all(
+    query = request.GET.get("q", "").strip()
+    params = []
+    where = ""
+    if query:
+        where = """
+        WHERE dc.dc_ID LIKE %s OR dc.dc_first_name LIKE %s OR dc.dc_last_name LIKE %s
+              OR dc.dc_department LIKE %s OR dc.dc_phone1 LIKE %s OR dc.dc_phone2 LIKE %s
+              OR h.h_name LIKE %s
         """
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword, keyword, keyword, keyword, keyword]
+    doctors = fetch_all(
+        f"""
         SELECT dc.dc_ID AS dc_id, dc.dc_first_name, dc.dc_last_name, dc.dc_department,
                dc.dc_phone1, dc.dc_phone2, dc.h_ID AS h_id, h.h_name
         FROM doctor dc
         JOIN hospital h ON h.h_ID = dc.h_ID
+        {where}
         ORDER BY dc.dc_ID
         LIMIT 200
-        """
+        """,
+        params,
     )
     hospitals = fetch_all("SELECT h_ID AS h_id, h_name FROM hospital ORDER BY h_ID")
-    return render(request, "admin/users/doctor.html", {"doctors": doctors, "hospitals": hospitals})
+    return render(
+        request,
+        "admin/users/doctor.html",
+        {"doctors": doctors, "hospitals": hospitals, "query": query},
+    )
 
 
 def handle_doctor_post(request):
@@ -326,16 +413,16 @@ def handle_doctor_post(request):
         execute_sql("DELETE FROM doctor WHERE dc_ID = %s", [request.POST.get("dc_id")])
         messages.success(request, "Doctor deleted.")
         return
-    params = [
-        request.POST.get("dc_first_name"),
-        request.POST.get("dc_last_name"),
-        request.POST.get("dc_department"),
-        request.POST.get("dc_phone1"),
-        request.POST.get("dc_phone2"),
-        request.POST.get("h_id"),
-        request.POST.get("dc_password") or 123456,
-    ]
     if action == "create":
+        params = [
+            request.POST.get("dc_first_name"),
+            request.POST.get("dc_last_name"),
+            request.POST.get("dc_department"),
+            request.POST.get("dc_phone1"),
+            request.POST.get("dc_phone2"),
+            request.POST.get("h_id"),
+            request.POST.get("dc_password") or 123456,
+        ]
         execute_sql(
             """
             INSERT INTO doctor
@@ -346,15 +433,23 @@ def handle_doctor_post(request):
         )
         messages.success(request, "Doctor added.")
     elif action == "update":
-        execute_sql(
-            """
-            UPDATE doctor
-            SET dc_first_name = %s, dc_last_name = %s, dc_department = %s,
-                dc_phone1 = %s, dc_phone2 = %s, h_ID = %s, dc_password = %s
-            WHERE dc_ID = %s
-            """,
-            params + [request.POST.get("dc_id")],
-        )
+        fields = """
+            dc_first_name = %s, dc_last_name = %s, dc_department = %s,
+            dc_phone1 = %s, dc_phone2 = %s, h_ID = %s
+        """
+        params = [
+            request.POST.get("dc_first_name"),
+            request.POST.get("dc_last_name"),
+            request.POST.get("dc_department"),
+            request.POST.get("dc_phone1"),
+            request.POST.get("dc_phone2"),
+            request.POST.get("h_id"),
+        ]
+        password = (request.POST.get("dc_password") or "").strip()
+        if password:
+            fields += ", dc_password = %s"
+            params.append(password)
+        execute_sql(f"UPDATE doctor SET {fields} WHERE dc_ID = %s", params + [request.POST.get("dc_id")])
         messages.success(request, "Doctor updated.")
 
 
@@ -362,21 +457,34 @@ def pharmacist_users(request):
     if request.method == "POST":
         handle_pharmacist_post(request)
         return redirect("pharmacist_users")
-    pharmacists = fetch_all(
+    query = request.GET.get("q", "").strip()
+    params = []
+    where = ""
+    if query:
+        where = """
+        WHERE ph.ph_ID LIKE %s OR ph.ph_firstname LIKE %s OR ph.ph_lastname LIKE %s
+              OR ph.ph_phone1 LIKE %s OR ph.ph_phone2 LIKE %s
+              OR ph.p_ID LIKE %s OR p.p_location LIKE %s
         """
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword, keyword, keyword, keyword, keyword]
+    pharmacists = fetch_all(
+        f"""
         SELECT ph.ph_ID AS ph_id, ph.ph_firstname, ph.ph_lastname, ph.ph_phone1, ph.ph_phone2,
                ph.p_ID AS p_id, p.p_location
         FROM pharmacist ph
         JOIN pharmacy p ON p.p_ID = ph.p_ID
+        {where}
         ORDER BY ph.ph_ID
         LIMIT 200
-        """
+        """,
+        params,
     )
     pharmacies = fetch_all("SELECT p_ID AS p_id, p_location FROM pharmacy ORDER BY p_ID")
     return render(
         request,
         "admin/users/phaemacist.html",
-        {"pharmacists": pharmacists, "pharmacies": pharmacies},
+        {"pharmacists": pharmacists, "pharmacies": pharmacies, "query": query},
     )
 
 
@@ -386,15 +494,15 @@ def handle_pharmacist_post(request):
         execute_sql("DELETE FROM pharmacist WHERE ph_ID = %s", [request.POST.get("ph_id")])
         messages.success(request, "Pharmacist deleted.")
         return
-    params = [
-        request.POST.get("p_id"),
-        request.POST.get("ph_firstname"),
-        request.POST.get("ph_lastname"),
-        request.POST.get("ph_phone1"),
-        request.POST.get("ph_phone2"),
-        request.POST.get("ph_password") or 123456,
-    ]
     if action == "create":
+        params = [
+            request.POST.get("p_id"),
+            request.POST.get("ph_firstname"),
+            request.POST.get("ph_lastname"),
+            request.POST.get("ph_phone1"),
+            request.POST.get("ph_phone2"),
+            request.POST.get("ph_password") or 123456,
+        ]
         execute_sql(
             """
             INSERT INTO pharmacist
@@ -405,15 +513,22 @@ def handle_pharmacist_post(request):
         )
         messages.success(request, "Pharmacist added.")
     elif action == "update":
-        execute_sql(
-            """
-            UPDATE pharmacist
-            SET p_ID = %s, ph_firstname = %s, ph_lastname = %s,
-                ph_phone1 = %s, ph_phone2 = %s, ph_password = %s
-            WHERE ph_ID = %s
-            """,
-            params + [request.POST.get("ph_id")],
-        )
+        fields = """
+            p_ID = %s, ph_firstname = %s, ph_lastname = %s,
+            ph_phone1 = %s, ph_phone2 = %s
+        """
+        params = [
+            request.POST.get("p_id"),
+            request.POST.get("ph_firstname"),
+            request.POST.get("ph_lastname"),
+            request.POST.get("ph_phone1"),
+            request.POST.get("ph_phone2"),
+        ]
+        password = (request.POST.get("ph_password") or "").strip()
+        if password:
+            fields += ", ph_password = %s"
+            params.append(password)
+        execute_sql(f"UPDATE pharmacist SET {fields} WHERE ph_ID = %s", params + [request.POST.get("ph_id")])
         messages.success(request, "Pharmacist updated.")
 
 
@@ -421,15 +536,24 @@ def distributor_users(request):
     if request.method == "POST":
         handle_distributor_post(request)
         return redirect("distributor_users")
+    query = request.GET.get("q", "").strip()
+    params = []
+    where = ""
+    if query:
+        where = "WHERE d_ID LIKE %s OR d_name LIKE %s OR d_address LIKE %s"
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword]
     distributors = fetch_all(
-        """
+        f"""
         SELECT d_ID AS d_id, d_name, d_address
         FROM distributor
+        {where}
         ORDER BY d_ID
         LIMIT 200
-        """
+        """,
+        params,
     )
-    return render(request, "admin/users/distributor.html", {"distributors": distributors})
+    return render(request, "admin/users/distributor.html", {"distributors": distributors, "query": query})
 
 
 def handle_distributor_post(request):
@@ -438,12 +562,12 @@ def handle_distributor_post(request):
         execute_sql("DELETE FROM distributor WHERE d_ID = %s", [request.POST.get("d_id")])
         messages.success(request, "Distributor deleted.")
         return
-    params = [
-        request.POST.get("d_name"),
-        request.POST.get("d_address"),
-        request.POST.get("d_password") or 123456,
-    ]
     if action == "create":
+        params = [
+            request.POST.get("d_name"),
+            request.POST.get("d_address"),
+            request.POST.get("d_password") or 123456,
+        ]
         execute_sql(
             """
             INSERT INTO distributor (d_ID, d_name, d_address, d_password)
@@ -453,14 +577,13 @@ def handle_distributor_post(request):
         )
         messages.success(request, "Distributor added.")
     elif action == "update":
-        execute_sql(
-            """
-            UPDATE distributor
-            SET d_name = %s, d_address = %s, d_password = %s
-            WHERE d_ID = %s
-            """,
-            params + [request.POST.get("d_id")],
-        )
+        fields = "d_name = %s, d_address = %s"
+        params = [request.POST.get("d_name"), request.POST.get("d_address")]
+        password = (request.POST.get("d_password") or "").strip()
+        if password:
+            fields += ", d_password = %s"
+            params.append(password)
+        execute_sql(f"UPDATE distributor SET {fields} WHERE d_ID = %s", params + [request.POST.get("d_id")])
         messages.success(request, "Distributor updated.")
 
 
@@ -494,11 +617,41 @@ def admin_users_admins(request):
 
 def admin_suppliers(request):
     if request.method == "POST":
-        handle_distributor_post(request)
+        action = request.POST.get("action")
+        if action == "update_supply":
+            try:
+                execute_sql(
+                    """
+                    UPDATE supply
+                    SET quantity = %s, p_ID = %s
+                    WHERE supply_ID = %s
+                    """,
+                    [
+                        request.POST.get("quantity"),
+                        request.POST.get("p_id"),
+                        request.POST.get("supply_id"),
+                    ],
+                )
+                messages.success(request, "Supply record updated.")
+            except DatabaseError as error:
+                messages.error(request, readable_database_error(error))
+        else:
+            handle_distributor_post(request)
         return redirect("admin_suppliers")
+    query = request.GET.get("q", "").strip()
     distributors = fetch_all("SELECT d_ID AS d_id, d_name, d_address FROM distributor ORDER BY d_ID")
-    records = fetch_all(
+    pharmacies = fetch_all("SELECT p_ID AS p_id, p_location FROM pharmacy ORDER BY p_ID")
+    params = []
+    where = ""
+    if query:
+        where = """
+        WHERE s.supply_ID LIKE %s OR s.ho_ID LIKE %s OR h.h_name LIKE %s
+              OR d.d_name LIKE %s OR s.p_ID LIKE %s OR ho.ho_status LIKE %s
         """
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword, keyword, keyword, keyword]
+    records = fetch_all(
+        f"""
         SELECT s.supply_ID AS supply_id, s.quantity, s.p_ID AS p_id, p.p_location,
                ho.ho_ID AS ho_id, ho.ho_date, ho.ho_status, h.h_name, d.d_name
         FROM supply s
@@ -506,14 +659,21 @@ def admin_suppliers(request):
         JOIN pharmacy p ON p.p_ID = s.p_ID
         JOIN hospital h ON h.h_ID = ho.h_ID
         JOIN distributor d ON d.d_ID = ho.d_ID
+        {where}
         ORDER BY ho.ho_date DESC, s.supply_ID DESC
         LIMIT 200
-        """
+        """,
+        params,
     )
     return render(
         request,
         "admin/suppliers.html",
-        {"distributors": distributors, "records": records},
+        {
+            "distributors": distributors,
+            "records": records,
+            "pharmacies": pharmacies,
+            "query": query,
+        },
     )
 
 
@@ -551,7 +711,7 @@ def load_doctor_profile(doctor_id):
 def load_doctor_patients(doctor_id):
     return fetch_all(
         """
-        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_gender, pat_department, pat_allergy
+        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_department, pat_allergy
         FROM patient
         WHERE dc_ID = %s
         ORDER BY pat_name, pat_ID
@@ -599,6 +759,37 @@ def load_pharmacists():
     )
 
 
+def assign_hospital_pharmacist(doctor_id):
+    return fetch_one(
+        """
+        SELECT ph.ph_ID AS pharmacist_id,
+               CONCAT(ph.ph_firstname, ' ', ph.ph_lastname) AS pharmacist_name,
+               ph.p_ID AS pharmacy_id
+        FROM doctor dc
+        JOIN pharmacy p ON p.h_ID = dc.h_ID
+        JOIN pharmacist ph ON ph.p_ID = p.p_ID
+        WHERE dc.dc_ID = %s
+        ORDER BY RAND()
+        LIMIT 1
+        """,
+        [doctor_id],
+    )
+
+
+def hospital_pharmacist_count(doctor_id):
+    row = fetch_one(
+        """
+        SELECT COUNT(*) AS total
+        FROM doctor dc
+        JOIN pharmacy p ON p.h_ID = dc.h_ID
+        JOIN pharmacist ph ON ph.p_ID = p.p_ID
+        WHERE dc.dc_ID = %s
+        """,
+        [doctor_id],
+    )
+    return row["total"] if row else 0
+
+
 def doctor_prescribe(request):
     doctor_id = require_doctor_session(request)
     if not doctor_id:
@@ -612,12 +803,11 @@ def doctor_prescribe(request):
     if request.method == "POST":
         patient_id = (request.POST.get("patient_id") or "").strip()
         symptom = (request.POST.get("symptom") or "").strip()
-        pharmacist_id = (request.POST.get("pharmacist_id") or "").strip()
         medicine_id = (request.POST.get("medicine_id") or "").strip()
         quantity_raw = (request.POST.get("quantity") or "").strip()
 
-        if not all([patient_id, symptom, pharmacist_id, medicine_id, quantity_raw]):
-            messages.error(request, "Patient, symptom, pharmacist, medicine, and quantity are required.")
+        if not all([patient_id, symptom, medicine_id, quantity_raw]):
+            messages.error(request, "Patient, symptom, medicine, and quantity are required.")
             return redirect("doctor_prescribe")
 
         try:
@@ -640,16 +830,9 @@ def doctor_prescribe(request):
             messages.error(request, "Selected patient is not assigned to this doctor.")
             return redirect("doctor_prescribe")
 
-        pharmacist = fetch_one(
-            """
-            SELECT ph_ID
-            FROM pharmacist
-            WHERE ph_ID = %s
-            """,
-            [pharmacist_id],
-        )
+        pharmacist = assign_hospital_pharmacist(doctor_id)
         if not pharmacist:
-            messages.error(request, "Selected pharmacist does not exist.")
+            messages.error(request, "No pharmacist is available in this doctor's hospital.")
             return redirect("doctor_prescribe")
 
         medicine = fetch_one(
@@ -677,9 +860,16 @@ def doctor_prescribe(request):
                     """
                     INSERT INTO prescription
                         (pr_ID, pr_date, pr_symptom, pat_ID, dc_ID, ph_ID)
-                    VALUES (%s, CURDATE(), %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    [prescription_id, symptom, patient_id, doctor_id, pharmacist_id],
+                    [
+                        prescription_id,
+                        PROJECT_TODAY,
+                        symptom,
+                        patient_id,
+                        doctor_id,
+                        pharmacist["pharmacist_id"],
+                    ],
                 )
                 execute_sql(
                     """
@@ -692,7 +882,10 @@ def doctor_prescribe(request):
             messages.error(request, readable_database_error(error))
             return redirect("doctor_prescribe")
 
-        messages.success(request, f"Prescription {prescription_id} created.")
+        messages.success(
+            request,
+            f"Prescription {prescription_id} created and assigned to {pharmacist['pharmacist_name']}.",
+        )
         return redirect("doctor_history")
 
     medicine_query = request.GET.get("medicine_q", "").strip()
@@ -701,7 +894,7 @@ def doctor_prescribe(request):
         "patients": load_doctor_patients(doctor_id),
         "medicines": load_available_medicines(medicine_query),
         "medicine_query": medicine_query,
-        "pharmacists": load_pharmacists(),
+        "hospital_pharmacist_count": hospital_pharmacist_count(doctor_id),
     }
     return render(request, "doctor/prescribe.html", context)
 
@@ -780,7 +973,7 @@ def doctor_patients(request):
 
     patients = fetch_all(
         f"""
-        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_gender, pat_department, pat_allergy
+        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_department, pat_allergy
         FROM patient
         {where}
         ORDER BY pat_name, pat_ID
@@ -964,7 +1157,8 @@ def pharmacist_batches(request):
     if not pharmacist_id:
         return redirect("login")
 
-    medicine_query = request.GET.get("medicine_q", "").strip()
+    query = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
     if request.method == "POST":
         mb_id = (request.POST.get("mb_id") or "").strip()
         medicine_id = (request.POST.get("medicine_id") or "").strip()
@@ -996,23 +1190,56 @@ def pharmacist_batches(request):
         messages.success(request, "Medicine batch recorded.")
         return redirect("pharmacist_batches")
 
+    batch_params = [PROJECT_TODAY, PROJECT_TODAY, PROJECT_TODAY]
+    batch_where = ""
+    batch_filters = []
+    if query:
+        batch_filters.append("(m.m_ID LIKE %s OR m.m_name LIKE %s)")
+        keyword = f"%{query}%"
+        batch_params.extend([keyword, keyword])
+    if status in {"Expired", "Near Expiry", "Valid"}:
+        batch_filters.append("""
+            CASE
+                WHEN mb.expiration_date < %s THEN 'Expired'
+                WHEN mb.expiration_date <= DATE_ADD(%s, INTERVAL 90 DAY) THEN 'Near Expiry'
+                ELSE 'Valid'
+            END = %s
+        """)
+        batch_params.extend([PROJECT_TODAY, PROJECT_TODAY, status])
+    else:
+        status = ""
+    if batch_filters:
+        batch_where = "WHERE " + " AND ".join(batch_filters)
     batches = fetch_all(
-        """
+        f"""
         SELECT mb.mb_ID AS mb_id, mb.m_ID AS m_id, m.m_name,
                mb.production_date, mb.expiration_date,
-               DATEDIFF(mb.expiration_date, CURDATE()) AS days_left
+               DATEDIFF(mb.expiration_date, %s) AS days_left,
+               CASE
+                   WHEN mb.expiration_date < %s THEN 'Expired'
+                   WHEN mb.expiration_date <= DATE_ADD(%s, INTERVAL 90 DAY) THEN 'Near Expiry'
+                   ELSE 'Valid'
+               END AS batch_status
         FROM medicine_batch mb
         JOIN medicine m ON m.m_ID = mb.m_ID
-        ORDER BY mb.expiration_date ASC, mb.mb_ID
-        LIMIT 300
-        """
+        {batch_where}
+        ORDER BY
+            CASE batch_status
+                WHEN 'Near Expiry' THEN 0
+                WHEN 'Expired' THEN 1
+                ELSE 2
+            END,
+            days_left ASC,
+            mb.expiration_date ASC
+        """,
+        batch_params,
     )
     medicine_params = []
     medicine_where = ""
-    if medicine_query:
-        medicine_where = "WHERE m_ID LIKE %s OR m_name LIKE %s OR manufacturer LIKE %s"
-        keyword = f"%{medicine_query}%"
-        medicine_params = [keyword, keyword, keyword]
+    if query:
+        medicine_where = "WHERE m_ID LIKE %s OR m_name LIKE %s"
+        keyword = f"%{query}%"
+        medicine_params = [keyword, keyword]
     medicines = fetch_all(
         f"""
         SELECT m_ID AS medicine_id, m_name, manufacturer
@@ -1029,8 +1256,9 @@ def pharmacist_batches(request):
         {
             "batches": batches,
             "medicines": medicines,
-            "medicine_query": medicine_query,
-            "expiry_warning_days": 90,
+            "query": query,
+            "status": status,
+            "project_today": PROJECT_TODAY,
         },
     )
 
@@ -1086,9 +1314,9 @@ def pharmacist_payments(request):
                     execute_sql(
                         """
                         INSERT INTO payment (py_ID, pr_ID, price, py_status, py_date)
-                        VALUES (%s, %s, %s, 'unpaid', CURDATE())
+                        VALUES (%s, %s, %s, 'unpaid', %s)
                         """,
-                        [payment_id, prescription_id, price["total_price"]],
+                        [payment_id, prescription_id, price["total_price"], PROJECT_TODAY],
                     )
             except DatabaseError as error:
                 messages.error(request, readable_database_error(error))
@@ -1126,10 +1354,10 @@ def pharmacist_payments(request):
                     """
                     UPDATE payment
                     SET py_status = %s,
-                        py_date = CASE WHEN %s = 'paid' THEN CURDATE() ELSE NULL END
+                        py_date = CASE WHEN %s = 'paid' THEN %s ELSE NULL END
                     WHERE py_ID = %s
                     """,
-                    [new_status, new_status, payment_id],
+                    [new_status, new_status, PROJECT_TODAY, payment_id],
                 )
         except DatabaseError as error:
             messages.error(request, readable_database_error(error))
@@ -1270,11 +1498,25 @@ def distributor_shipments(request):
         messages.success(request, "Medicine batch recorded.")
         return redirect("distributor_shipments")
 
+    query = request.GET.get("q", "").strip()
+    keyword = f"%{query}%"
     params = []
     where = "WHERE LOWER(ho.ho_status) IN ('shipping', 'completed', 'delivered')"
     if distributor_id:
         where += " AND ho.d_ID = %s"
         params.append(distributor_id)
+    if query:
+        where += """
+            AND (
+                ho.ho_ID LIKE %s OR
+                h.h_name LIKE %s OR
+                ho.ho_status LIKE %s OR
+                s.supply_ID LIKE %s OR
+                s.p_ID LIKE %s OR
+                CAST(s.quantity AS CHAR) LIKE %s
+            )
+        """
+        params.extend([keyword, keyword, keyword, keyword, keyword, keyword])
     shipments = fetch_all(
         f"""
         SELECT ho.ho_ID AS ho_id, ho.ho_date, ho.ho_status, h.h_name,
@@ -1288,14 +1530,23 @@ def distributor_shipments(request):
         """,
         params,
     )
-    batches = fetch_all(
+    batch_params = []
+    batch_where = ""
+    if query:
+        batch_where = """
+        WHERE mb.mb_ID LIKE %s OR mb.m_ID LIKE %s OR m.m_name LIKE %s
         """
+        batch_params = [keyword, keyword, keyword]
+    batches = fetch_all(
+        f"""
         SELECT mb.mb_ID AS mb_id, mb.production_date, mb.expiration_date, m.m_ID AS m_id, m.m_name
         FROM medicine_batch mb
         JOIN medicine m ON m.m_ID = mb.m_ID
+        {batch_where}
         ORDER BY mb.production_date DESC, mb.mb_ID DESC
         LIMIT 80
-        """
+        """,
+        batch_params,
     )
     medicines = fetch_all(
         """
@@ -1312,6 +1563,7 @@ def distributor_shipments(request):
             "batches": batches,
             "medicines": medicines,
             "distributor_id": distributor_id,
+            "query": query,
         },
     )
 

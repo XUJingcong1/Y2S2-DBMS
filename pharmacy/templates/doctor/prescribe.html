@@ -2,23 +2,23 @@
 
 {% block content %}
 <!-- [View] Doctor Prescribe -->
-<div id="view-doctor-prescribe" class="view-section h-full flex gap-6">
+<div id="view-doctor-prescribe" class="view-section grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
     <!-- Left Form -->
-    <form method="post" class="w-1/3 bg-white rounded-[2.5rem] p-8 shadow-sm flex flex-col">
+    <form method="post" class="xl:col-span-4 bg-white rounded-[2.5rem] p-6 xl:p-8 shadow-sm flex flex-col gap-4">
         {% csrf_token %}
-        <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4">
+        <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center">
             <i class="ph-bold ph-pencil-simple text-2xl"></i>
         </div>
         <h2 class="text-2xl font-extrabold text-slate-900 mb-1">New Prescription</h2>
         {% if doctor %}
-            <p class="text-xs font-bold text-slate-400 mb-6">
+            <p class="text-xs font-bold text-slate-400">
                 {{ doctor.dc_first_name }} {{ doctor.dc_last_name }} - {{ doctor.dc_department }}
             </p>
         {% else %}
-            <p class="text-xs font-bold text-slate-400 mb-6">Doctor Workspace</p>
+            <p class="text-xs font-bold text-slate-400">Doctor Workspace</p>
         {% endif %}
 
-        <div class="space-y-4 flex-1">
+        <div class="space-y-4">
             <div>
                 <label class="block text-xs font-bold text-slate-500 mb-1">Patient</label>
                 <select name="patient_id" required class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-200 outline-none">
@@ -36,16 +36,14 @@
                 <textarea name="symptom" rows="3" required class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 outline-none resize-none" placeholder="Enter symptoms or diagnosis"></textarea>
             </div>
 
-            <div>
-                <label class="block text-xs font-bold text-slate-500 mb-1">Pharmacist</label>
-                <select name="pharmacist_id" required class="w-full bg-slate-50 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-200 outline-none">
-                    <option value="" selected disabled>Select dispensing pharmacist</option>
-                    {% for pharmacist in pharmacists %}
-                        <option value="{{ pharmacist.pharmacist_id }}">
-                            {{ pharmacist.pharmacist_name }} ({{ pharmacist.pharmacist_id }}) - {{ pharmacist.pharmacy_id }}
-                        </option>
-                    {% endfor %}
-                </select>
+            <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-blue-500 mb-1">Pharmacist Assignment</p>
+                <p class="text-sm font-bold text-slate-700">
+                    A pharmacist from {{ doctor.h_name|default:"the same hospital" }} will be assigned automatically.
+                </p>
+                <p class="text-[11px] font-bold text-slate-400 mt-1">
+                    {{ hospital_pharmacist_count }} available hospital pharmacist{{ hospital_pharmacist_count|pluralize }}.
+                </p>
             </div>
 
             <div>
@@ -74,7 +72,7 @@
     </form>
 
     <!-- Right Reference Tables -->
-    <div class="w-2/3 flex flex-col gap-5">
+    <div class="xl:col-span-8 flex flex-col gap-5 min-w-0">
         <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
             <div class="flex justify-between items-end mb-4">
                 <div>

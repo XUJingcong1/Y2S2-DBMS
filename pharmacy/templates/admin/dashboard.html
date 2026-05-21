@@ -12,14 +12,14 @@
                             <div class="w-12 h-12 rounded-full bg-soft-blue text-white flex items-center justify-center mb-4"><i class="ph-fill ph-prescription text-2xl"></i></div>
                             <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Prescription Table</span>
                         </div>
-                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Daily Prescriptions</h3><div class="text-3xl font-black text-slate-900">{{ prescription_count }}</div><p class="text-xs font-bold text-emerald-500 mt-2">Based on current database</p></div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Daily Prescriptions</h3><div class="text-3xl font-black text-slate-900">{{ prescription_count }}</div><p class="text-xs font-bold text-emerald-500 mt-2">Project today: {{ project_today }}</p></div>
                     </div>
                     <div class="bg-white rounded-[2rem] p-6 shadow-sm flex flex-col justify-between border border-slate-50">
                         <div class="flex justify-between items-start">
                             <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-4"><i class="ph-fill ph-warning-octagon text-2xl"></i></div>
                             <span class="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Store / Batch</span>
                         </div>
-                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Low Stock & Expiry Alerts</h3><div class="text-3xl font-black text-slate-900">{{ low_stock_count }} <span class="text-sm text-slate-400">items</span></div><p class="text-xs font-bold text-rose-500 mt-2">Needs immediate action</p></div>
+                        <div><h3 class="font-bold text-slate-500 text-sm mb-1">Low Stock & Expiry Alerts</h3><div class="text-3xl font-black text-slate-900">{{ low_stock_count }} <span class="text-sm text-slate-400">items</span></div><p class="text-xs font-bold text-rose-500 mt-2">Using fixed project date</p></div>
                     </div>
                     <div class="bg-slate-800 rounded-[2rem] p-6 shadow-sm flex flex-col justify-between text-white border border-slate-700">
                         <div class="flex justify-between items-start">
@@ -40,6 +40,11 @@
                                             <option value="{{ year }}" {% if year == stats_year %}selected{% endif %}>{{ year }}</option>
                                         {% endfor %}
                                     </select>
+                                    <select id="chart-metric" class="bg-slate-50 rounded-full py-2 px-4 text-sm font-bold">
+                                        {% for metric in chart_metrics %}
+                                            <option value="{{ metric.key }}" {% if metric.key == chart_metric %}selected{% endif %}>{{ metric.label }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                         </div>
                         <div class="flex-1 w-full relative">
@@ -51,12 +56,17 @@
             <script>
             window.chartLabels = {{ chart_labels|safe }};
             window.chartData = {{ chart_data|safe }};
-            window.inventoryData = {{ inventory_data|safe }};
-            window.expiredData = {{ expired_data|safe }};
+            window.chartMetricLabel = "{{ chart_metric_label }}";
+            window.chartMetricColor = "{{ chart_metric_color }}";
             </script>
             <script>
-                document.getElementById('stats-year').addEventListener('change', function () {
-                    window.location.href = `/admin/dashboard/?year=${this.value}`;
-                });
+                function updateDashboardFilters() {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('year', document.getElementById('stats-year').value);
+                    params.set('chart_metric', document.getElementById('chart-metric').value);
+                    window.location.href = `/admin/dashboard/?${params.toString()}`;
+                }
+                document.getElementById('stats-year').addEventListener('change', updateDashboardFilters);
+                document.getElementById('chart-metric').addEventListener('change', updateDashboardFilters);
             </script>
 {% endblock %}

@@ -44,13 +44,23 @@
         </section>
 
         <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
-            <h3 class="text-lg font-extrabold text-slate-900 mb-4">Supply / Delivery Records</h3>
+            <div class="flex justify-between items-end gap-4 mb-4">
+                <h3 class="text-lg font-extrabold text-slate-900">Supply / Delivery Records</h3>
+                <span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-black">{{ records|length }} records</span>
+            </div>
+            <form method="get" class="flex gap-3 mb-4">
+                <input name="q" value="{{ query }}" placeholder="Search supply, order, hospital, distributor, pharmacy, or status"
+                       class="flex-1 bg-slate-50 rounded-full px-4 py-2 text-xs font-bold outline-none">
+                <button class="bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-bold">Search</button>
+            </form>
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                        <th class="py-3 px-3">Supply</th>
                         <th class="py-3 px-3">Order</th>
                         <th class="py-3 px-3">Hospital</th>
                         <th class="py-3 px-3">Distributor</th>
+                        <th class="py-3 px-3">Pharmacy</th>
                         <th class="py-3 px-3">Qty</th>
                         <th class="py-3 px-3">Status</th>
                     </tr>
@@ -58,11 +68,33 @@
                 <tbody class="text-sm font-bold text-slate-700">
                     {% for record in records %}
                     <tr class="border-b border-slate-50">
+                        <td class="py-3 px-3 font-mono">{{ record.supply_id }}</td>
                         <td class="py-3 px-3 font-mono">{{ record.ho_id }}</td>
                         <td class="py-3 px-3">{{ record.h_name }}</td>
                         <td class="py-3 px-3">{{ record.d_name }}</td>
+                        <td class="py-3 px-3">{{ record.p_id }}</td>
                         <td class="py-3 px-3">{{ record.quantity }}</td>
                         <td class="py-3 px-3"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs">{{ record.ho_status }}</span></td>
+                    </tr>
+                    <tr class="border-b border-slate-100 bg-slate-50/60">
+                        <td colspan="7" class="py-2 px-3">
+                            <form method="post" class="grid grid-cols-3 gap-2 items-center">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update_supply">
+                                <input type="hidden" name="supply_id" value="{{ record.supply_id }}">
+                                <input name="quantity" value="{{ record.quantity }}" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                                <select name="p_id" class="bg-white rounded-lg px-3 py-2 text-xs font-bold">
+                                    {% for pharmacy in pharmacies %}
+                                        <option value="{{ pharmacy.p_id }}" {% if pharmacy.p_id == record.p_id %}selected{% endif %}>{{ pharmacy.p_id }} - {{ pharmacy.p_location }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="text-blue-500 bg-blue-50 px-3 py-2 rounded-lg text-xs font-bold">Save Supply Edit</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-6 px-3 text-center text-slate-400">No supply records found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

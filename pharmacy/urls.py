@@ -98,6 +98,18 @@ urlpatterns = [
     ),
 
     path(
+        'doctor/history/',
+        views.doctor_history,
+        name='doctor_history'
+    ),
+
+    path(
+        'doctor/patients/',
+        views.doctor_patients,
+        name='doctor_patients'
+    ),
+
+    path(
         'doctor/dashboard/',
         views.doctor_prescribe,
         name='doctor_dashboard'
@@ -123,6 +135,18 @@ urlpatterns = [
         'pharmacist/audit/',
         views.pharmacist_audit,
         name='pharmacist_audit'
+    ),
+
+    path(
+        'pharmacist/batches/',
+        views.pharmacist_batches,
+        name='pharmacist_batches'
+    ),
+
+    path(
+        'pharmacist/payments/',
+        views.pharmacist_payments,
+        name='pharmacist_payments'
     ),
 
     # =====================================================

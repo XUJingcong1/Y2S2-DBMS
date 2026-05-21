@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db import connection
+from django.db import DatabaseError, connection, transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
@@ -38,6 +38,19 @@ def fetch_one(sql, params=None):
 def execute_sql(sql, params=None):
     with connection.cursor() as cursor:
         cursor.execute(sql, params or [])
+
+
+def readable_database_error(error):
+    message = str(error)
+    if "Cannot prescribe: insufficient stock" in message:
+        return "Cannot prescribe: insufficient stock for the selected medicine."
+    if "Expiration date must be after production date" in message:
+        return "Expiration date must be after production date."
+    if "Medicine batch already expired" in message:
+        return "Medicine batch already expired."
+    if "foreign key" in message.lower():
+        return "The selected record is invalid or no longer exists."
+    return f"Database rejected the request: {message}"
 
 
 def get_stats_year(request):
@@ -507,29 +520,665 @@ def admin_suppliers(request):
 # Doctor pages.
 
 
+def current_doctor_id(request):
+    try:
+        return request.session["user_id"]
+    except KeyError:
+        return None
+
+
+def require_doctor_session(request):
+    doctor_id = current_doctor_id(request)
+    if not doctor_id:
+        messages.error(request, "Please log in as a doctor first.")
+        return None
+    return doctor_id
+
+
+def load_doctor_profile(doctor_id):
+    return fetch_one(
+        """
+        SELECT dc.dc_ID AS doctor_id, dc.dc_first_name, dc.dc_last_name, dc.dc_department,
+               dc.h_ID AS hospital_id, h.h_name
+        FROM doctor dc
+        JOIN hospital h ON h.h_ID = dc.h_ID
+        WHERE dc.dc_ID = %s
+        """,
+        [doctor_id],
+    )
+
+
+def load_doctor_patients(doctor_id):
+    return fetch_all(
+        """
+        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_gender, pat_department, pat_allergy
+        FROM patient
+        WHERE dc_ID = %s
+        ORDER BY pat_name, pat_ID
+        """,
+        [doctor_id],
+    )
+
+
+def load_available_medicines(query=""):
+    params = []
+    where = ""
+    if query:
+        where = """
+        WHERE m.m_ID LIKE %s OR m.m_name LIKE %s OR m.manufacturer LIKE %s
+        """
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword]
+    return fetch_all(
+        f"""
+        SELECT m.m_ID AS medicine_id, m.m_name, m.manufacturer, m.unit_price,
+               MIN(s.inventory) AS inventory, SUM(s.inventory) AS total_inventory
+        FROM medicine m
+        JOIN store s ON s.m_ID = m.m_ID
+        {where}
+        GROUP BY m.m_ID, m.m_name, m.manufacturer, m.unit_price
+        HAVING MIN(s.inventory) > 0
+        ORDER BY m.m_name, m.m_ID
+        LIMIT 300
+        """,
+        params,
+    )
+
+
+def load_pharmacists():
+    return fetch_all(
+        """
+        SELECT ph.ph_ID AS pharmacist_id,
+               CONCAT(ph.ph_firstname, ' ', ph.ph_lastname) AS pharmacist_name,
+               ph.p_ID AS pharmacy_id,
+               p.p_location
+        FROM pharmacist ph
+        JOIN pharmacy p ON p.p_ID = ph.p_ID
+        ORDER BY ph.ph_ID
+        """
+    )
+
+
 def doctor_prescribe(request):
-    return render(request, "doctor/prescribe.html")
+    doctor_id = require_doctor_session(request)
+    if not doctor_id:
+        return redirect("login")
+
+    doctor = load_doctor_profile(doctor_id)
+    if not doctor:
+        messages.error(request, "Doctor profile was not found.")
+        return redirect("login")
+
+    if request.method == "POST":
+        patient_id = (request.POST.get("patient_id") or "").strip()
+        symptom = (request.POST.get("symptom") or "").strip()
+        pharmacist_id = (request.POST.get("pharmacist_id") or "").strip()
+        medicine_id = (request.POST.get("medicine_id") or "").strip()
+        quantity_raw = (request.POST.get("quantity") or "").strip()
+
+        if not all([patient_id, symptom, pharmacist_id, medicine_id, quantity_raw]):
+            messages.error(request, "Patient, symptom, pharmacist, medicine, and quantity are required.")
+            return redirect("doctor_prescribe")
+
+        try:
+            quantity = int(quantity_raw)
+            if quantity <= 0:
+                raise ValueError
+        except ValueError:
+            messages.error(request, "Quantity must be a positive integer.")
+            return redirect("doctor_prescribe")
+
+        patient = fetch_one(
+            """
+            SELECT pat_ID
+            FROM patient
+            WHERE pat_ID = %s AND dc_ID = %s
+            """,
+            [patient_id, doctor_id],
+        )
+        if not patient:
+            messages.error(request, "Selected patient is not assigned to this doctor.")
+            return redirect("doctor_prescribe")
+
+        pharmacist = fetch_one(
+            """
+            SELECT ph_ID
+            FROM pharmacist
+            WHERE ph_ID = %s
+            """,
+            [pharmacist_id],
+        )
+        if not pharmacist:
+            messages.error(request, "Selected pharmacist does not exist.")
+            return redirect("doctor_prescribe")
+
+        medicine = fetch_one(
+            """
+            SELECT m.m_ID AS medicine_id, MIN(s.inventory) AS inventory
+            FROM medicine m
+            JOIN store s ON s.m_ID = m.m_ID
+            WHERE m.m_ID = %s
+            GROUP BY m.m_ID
+            """,
+            [medicine_id],
+        )
+        if not medicine:
+            messages.error(request, "Selected medicine is not available in inventory.")
+            return redirect("doctor_prescribe")
+
+        if int(medicine["inventory"] or 0) < quantity:
+            messages.error(request, "Cannot prescribe: insufficient stock for the selected medicine.")
+            return redirect("doctor_prescribe")
+
+        try:
+            with transaction.atomic():
+                prescription_id = next_code("prescription", "pr_ID", "PR-", 8)
+                execute_sql(
+                    """
+                    INSERT INTO prescription
+                        (pr_ID, pr_date, pr_symptom, pat_ID, dc_ID, ph_ID)
+                    VALUES (%s, CURDATE(), %s, %s, %s, %s)
+                    """,
+                    [prescription_id, symptom, patient_id, doctor_id, pharmacist_id],
+                )
+                execute_sql(
+                    """
+                    INSERT INTO contain (pr_ID, m_ID, quantity)
+                    VALUES (%s, %s, %s)
+                    """,
+                    [prescription_id, medicine_id, quantity],
+                )
+        except DatabaseError as error:
+            messages.error(request, readable_database_error(error))
+            return redirect("doctor_prescribe")
+
+        messages.success(request, f"Prescription {prescription_id} created.")
+        return redirect("doctor_history")
+
+    medicine_query = request.GET.get("medicine_q", "").strip()
+    context = {
+        "doctor": doctor,
+        "patients": load_doctor_patients(doctor_id),
+        "medicines": load_available_medicines(medicine_query),
+        "medicine_query": medicine_query,
+        "pharmacists": load_pharmacists(),
+    }
+    return render(request, "doctor/prescribe.html", context)
+
+
+def doctor_history(request):
+    doctor_id = require_doctor_session(request)
+    if not doctor_id:
+        return redirect("login")
+
+    query = request.GET.get("q", "").strip()
+    params = [doctor_id]
+    where = "WHERE pr.dc_ID = %s"
+    if query:
+        where += """
+            AND (
+                pr.pr_ID LIKE %s OR
+                pat.pat_name LIKE %s OR
+                pr.pr_symptom LIKE %s OR
+                py.py_status LIKE %s
+            )
+        """
+        keyword = f"%{query}%"
+        params.extend([keyword, keyword, keyword, keyword])
+
+    prescriptions = fetch_all(
+        f"""
+        SELECT pr.pr_ID AS prescription_id, pr.pr_date, pr.pr_symptom,
+               pat.pat_ID AS patient_id, pat.pat_name,
+               CONCAT(ph.ph_firstname, ' ', ph.ph_lastname) AS pharmacist_name,
+               GROUP_CONCAT(
+                   CONCAT(m.m_name, ' x', c.quantity)
+                   ORDER BY m.m_name
+                   SEPARATOR ', '
+               ) AS medicines,
+               py.py_status, py.price
+        FROM prescription pr
+        JOIN patient pat ON pat.pat_ID = pr.pat_ID
+        JOIN pharmacist ph ON ph.ph_ID = pr.ph_ID
+        LEFT JOIN contain c ON c.pr_ID = pr.pr_ID
+        LEFT JOIN medicine m ON m.m_ID = c.m_ID
+        LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
+        {where}
+        GROUP BY pr.pr_ID, pr.pr_date, pr.pr_symptom, pat.pat_ID, pat.pat_name,
+                 ph.ph_firstname, ph.ph_lastname, py.py_status, py.price
+        ORDER BY pr.pr_date DESC, pr.pr_ID DESC
+        LIMIT 300
+        """,
+        params,
+    )
+    return render(
+        request,
+        "doctor/history.html",
+        {"prescriptions": prescriptions, "query": query},
+    )
+
+
+def doctor_patients(request):
+    doctor_id = require_doctor_session(request)
+    if not doctor_id:
+        return redirect("login")
+
+    query = request.GET.get("q", "").strip()
+    params = [doctor_id]
+    where = "WHERE dc_ID = %s"
+    if query:
+        where += """
+            AND (
+                pat_ID LIKE %s OR
+                pat_name LIKE %s OR
+                pat_department LIKE %s OR
+                pat_allergy LIKE %s
+            )
+        """
+        keyword = f"%{query}%"
+        params.extend([keyword, keyword, keyword, keyword])
+
+    patients = fetch_all(
+        f"""
+        SELECT pat_ID AS patient_id, pat_name, pat_age, pat_gender, pat_department, pat_allergy
+        FROM patient
+        {where}
+        ORDER BY pat_name, pat_ID
+        LIMIT 300
+        """,
+        params,
+    )
+    return render(
+        request,
+        "doctor/patients.html",
+        {"patients": patients, "query": query},
+    )
 
 
 # Pharmacist pages.
 
 
-def pharmacist_inventory(request):
-    stores = fetch_all(
+def current_pharmacist_id(request):
+    try:
+        return request.session["user_id"]
+    except KeyError:
+        return None
+
+
+def require_pharmacist_session(request):
+    pharmacist_id = current_pharmacist_id(request)
+    if not pharmacist_id:
+        messages.error(request, "Please log in as a pharmacist first.")
+        return None
+    return pharmacist_id
+
+
+def load_pharmacist_profile(pharmacist_id):
+    return fetch_one(
         """
-        SELECT s.s_ID AS s_id, s.inventory, s.store_date, m.m_ID AS m_id, m.m_name, p.p_ID AS p_id
-        FROM store s
-        JOIN medicine m ON m.m_ID = s.m_ID
-        JOIN pharmacy p ON p.p_ID = s.p_ID
-        ORDER BY s.inventory ASC
-        LIMIT 200
-        """
+        SELECT ph.ph_ID AS pharmacist_id,
+               CONCAT(ph.ph_firstname, ' ', ph.ph_lastname) AS pharmacist_name,
+               ph.p_ID AS pharmacy_id, p.p_location
+        FROM pharmacist ph
+        JOIN pharmacy p ON p.p_ID = ph.p_ID
+        WHERE ph.ph_ID = %s
+        """,
+        [pharmacist_id],
     )
-    return render(request, "pharmacist/inventory.html", {"stores": stores})
+
+
+def pharmacist_inventory(request):
+    pharmacist_id = require_pharmacist_session(request)
+    if not pharmacist_id:
+        return redirect("login")
+
+    pharmacist = load_pharmacist_profile(pharmacist_id)
+    if not pharmacist:
+        messages.error(request, "Pharmacist profile was not found.")
+        return redirect("login")
+
+    query = request.GET.get("q", "").strip()
+    params = [pharmacist_id]
+    where = "WHERE ph.ph_ID = %s"
+    if query:
+        where += """
+            AND (
+                m.m_ID LIKE %s OR
+                m.m_name LIKE %s OR
+                m.manufacturer LIKE %s
+            )
+        """
+        keyword = f"%{query}%"
+        params.extend([keyword, keyword, keyword])
+
+    stores = fetch_all(
+        f"""
+        SELECT s.s_ID AS s_id, s.inventory, s.store_date,
+               m.m_ID AS m_id, m.m_name, m.manufacturer, m.unit_price,
+               p.p_ID AS p_id, p.p_location
+        FROM pharmacist ph
+        JOIN pharmacy p ON p.p_ID = ph.p_ID
+        JOIN store s ON s.p_ID = p.p_ID
+        JOIN medicine m ON m.m_ID = s.m_ID
+        {where}
+        ORDER BY s.inventory ASC, m.m_name
+        LIMIT 300
+        """,
+        params,
+    )
+    return render(
+        request,
+        "pharmacist/inventory.html",
+        {
+            "stores": stores,
+            "pharmacist": pharmacist,
+            "query": query,
+            "low_stock_limit": LOW_STOCK_LIMIT,
+        },
+    )
 
 
 def pharmacist_audit(request):
-    return render(request, "pharmacist/audit.html")
+    pharmacist_id = require_pharmacist_session(request)
+    if not pharmacist_id:
+        return redirect("login")
+
+    if request.method == "POST":
+        prescription_id = request.POST.get("prescription_id")
+        try:
+            prescription = fetch_one(
+                """
+                SELECT pr.pr_ID AS prescription_id, py.py_status
+                FROM prescription pr
+                LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
+                WHERE pr.pr_ID = %s AND pr.ph_ID = %s
+                """,
+                [prescription_id, pharmacist_id],
+            )
+            if not prescription:
+                messages.error(request, "Prescription was not found for this pharmacist.")
+                return redirect("pharmacist_audit")
+            if prescription["py_status"] != "paid":
+                messages.error(request, "Only paid prescriptions can be confirmed for dispensing.")
+                return redirect("pharmacist_audit")
+        except DatabaseError as error:
+            messages.error(request, readable_database_error(error))
+            return redirect("pharmacist_audit")
+
+        messages.success(
+            request,
+            "Prescription confirmed for dispensing. Inventory was already reduced when the prescription was created.",
+        )
+        return redirect("pharmacist_audit")
+
+    query = request.GET.get("q", "").strip()
+    params = [pharmacist_id]
+    where = "WHERE pr.ph_ID = %s"
+    if query:
+        where += """
+            AND (
+                pr.pr_ID LIKE %s OR
+                pat.pat_name LIKE %s OR
+                CONCAT(dc.dc_first_name, ' ', dc.dc_last_name) LIKE %s OR
+                pr.pr_symptom LIKE %s OR
+                py.py_status LIKE %s
+            )
+        """
+        keyword = f"%{query}%"
+        params.extend([keyword, keyword, keyword, keyword, keyword])
+
+    prescriptions = fetch_all(
+        f"""
+        SELECT pr.pr_ID AS prescription_id, pr.pr_date, pr.pr_symptom,
+               pat.pat_name,
+               CONCAT(dc.dc_first_name, ' ', dc.dc_last_name) AS doctor_name,
+               GROUP_CONCAT(
+                   CONCAT(m.m_name, ' x', c.quantity)
+                   ORDER BY m.m_name
+                   SEPARATOR ', '
+               ) AS medicines,
+               py.py_status, py.price
+        FROM prescription pr
+        JOIN patient pat ON pat.pat_ID = pr.pat_ID
+        JOIN doctor dc ON dc.dc_ID = pr.dc_ID
+        LEFT JOIN contain c ON c.pr_ID = pr.pr_ID
+        LEFT JOIN medicine m ON m.m_ID = c.m_ID
+        LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
+        {where}
+        GROUP BY pr.pr_ID, pr.pr_date, pr.pr_symptom, pat.pat_name,
+                 dc.dc_first_name, dc.dc_last_name, py.py_status, py.price
+        ORDER BY pr.pr_date DESC, pr.pr_ID DESC
+        LIMIT 300
+        """,
+        params,
+    )
+    return render(
+        request,
+        "pharmacist/audit.html",
+        {"prescriptions": prescriptions, "query": query},
+    )
+
+
+def pharmacist_batches(request):
+    pharmacist_id = require_pharmacist_session(request)
+    if not pharmacist_id:
+        return redirect("login")
+
+    medicine_query = request.GET.get("medicine_q", "").strip()
+    if request.method == "POST":
+        mb_id = (request.POST.get("mb_id") or "").strip()
+        medicine_id = (request.POST.get("medicine_id") or "").strip()
+        production_date = (request.POST.get("production_date") or "").strip()
+        expiration_date = (request.POST.get("expiration_date") or "").strip()
+
+        if not all([medicine_id, production_date, expiration_date]):
+            messages.error(request, "Medicine, production date, and expiration date are required.")
+            return redirect("pharmacist_batches")
+
+        try:
+            with transaction.atomic():
+                execute_sql(
+                    """
+                    INSERT INTO medicine_batch (mb_ID, m_ID, production_date, expiration_date)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    [
+                        mb_id or next_code("medicine_batch", "mb_ID", "MB-", 5),
+                        medicine_id,
+                        production_date,
+                        expiration_date,
+                    ],
+                )
+        except DatabaseError as error:
+            messages.error(request, readable_database_error(error))
+            return redirect("pharmacist_batches")
+
+        messages.success(request, "Medicine batch recorded.")
+        return redirect("pharmacist_batches")
+
+    batches = fetch_all(
+        """
+        SELECT mb.mb_ID AS mb_id, mb.m_ID AS m_id, m.m_name,
+               mb.production_date, mb.expiration_date,
+               DATEDIFF(mb.expiration_date, CURDATE()) AS days_left
+        FROM medicine_batch mb
+        JOIN medicine m ON m.m_ID = mb.m_ID
+        ORDER BY mb.expiration_date ASC, mb.mb_ID
+        LIMIT 300
+        """
+    )
+    medicine_params = []
+    medicine_where = ""
+    if medicine_query:
+        medicine_where = "WHERE m_ID LIKE %s OR m_name LIKE %s OR manufacturer LIKE %s"
+        keyword = f"%{medicine_query}%"
+        medicine_params = [keyword, keyword, keyword]
+    medicines = fetch_all(
+        f"""
+        SELECT m_ID AS medicine_id, m_name, manufacturer
+        FROM medicine
+        {medicine_where}
+        ORDER BY m_name, m_ID
+        LIMIT 300
+        """,
+        medicine_params,
+    )
+    return render(
+        request,
+        "pharmacist/batches.html",
+        {
+            "batches": batches,
+            "medicines": medicines,
+            "medicine_query": medicine_query,
+            "expiry_warning_days": 90,
+        },
+    )
+
+
+def pharmacist_payments(request):
+    pharmacist_id = require_pharmacist_session(request)
+    if not pharmacist_id:
+        return redirect("login")
+
+    if request.method == "POST":
+        action = request.POST.get("action", "update")
+
+        if action == "create_unpaid":
+            prescription_id = request.POST.get("prescription_id")
+            try:
+                with transaction.atomic():
+                    prescription = fetch_one(
+                        """
+                        SELECT pr_ID AS prescription_id
+                        FROM prescription
+                        WHERE pr_ID = %s AND ph_ID = %s
+                        FOR UPDATE
+                        """,
+                        [prescription_id, pharmacist_id],
+                    )
+                    if not prescription:
+                        messages.error(request, "Prescription was not found for this pharmacist.")
+                        return redirect("pharmacist_payments")
+
+                    existing_payment = fetch_one(
+                        """
+                        SELECT py_ID AS payment_id
+                        FROM payment
+                        WHERE pr_ID = %s
+                        LIMIT 1
+                        """,
+                        [prescription_id],
+                    )
+                    if existing_payment:
+                        messages.error(request, "This prescription already has a payment record.")
+                        return redirect("pharmacist_payments")
+
+                    price = fetch_one(
+                        """
+                        SELECT COALESCE(SUM(c.quantity * m.unit_price), 0) AS total_price
+                        FROM contain c
+                        JOIN medicine m ON m.m_ID = c.m_ID
+                        WHERE c.pr_ID = %s
+                        """,
+                        [prescription_id],
+                    )
+                    payment_id = next_code("payment", "py_ID", "PAY-", 8)
+                    execute_sql(
+                        """
+                        INSERT INTO payment (py_ID, pr_ID, price, py_status, py_date)
+                        VALUES (%s, %s, %s, 'unpaid', CURDATE())
+                        """,
+                        [payment_id, prescription_id, price["total_price"]],
+                    )
+            except DatabaseError as error:
+                messages.error(request, readable_database_error(error))
+                return redirect("pharmacist_payments")
+
+            messages.success(request, f"Unpaid payment {payment_id} created.")
+            return redirect("pharmacist_payments")
+
+        if action != "update":
+            messages.error(request, "Invalid payment action.")
+            return redirect("pharmacist_payments")
+
+        payment_id = request.POST.get("payment_id")
+        new_status = request.POST.get("py_status")
+        if new_status not in {"paid", "unpaid", "delayed"}:
+            messages.error(request, "Invalid payment status.")
+            return redirect("pharmacist_payments")
+
+        try:
+            payment = fetch_one(
+                """
+                SELECT py.py_ID AS payment_id
+                FROM payment py
+                JOIN prescription pr ON pr.pr_ID = py.pr_ID
+                WHERE py.py_ID = %s AND pr.ph_ID = %s
+                """,
+                [payment_id, pharmacist_id],
+            )
+            if not payment:
+                messages.error(request, "Payment record was not found for this pharmacist.")
+                return redirect("pharmacist_payments")
+
+            with transaction.atomic():
+                execute_sql(
+                    """
+                    UPDATE payment
+                    SET py_status = %s,
+                        py_date = CASE WHEN %s = 'paid' THEN CURDATE() ELSE NULL END
+                    WHERE py_ID = %s
+                    """,
+                    [new_status, new_status, payment_id],
+                )
+        except DatabaseError as error:
+            messages.error(request, readable_database_error(error))
+            return redirect("pharmacist_payments")
+
+        messages.success(request, "Payment status updated.")
+        return redirect("pharmacist_payments")
+
+    query = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
+    params = [pharmacist_id]
+    where = "WHERE pr.ph_ID = %s"
+    if status in {"paid", "unpaid", "delayed"}:
+        where += " AND py.py_status = %s"
+        params.append(status)
+    elif status == "no_payment":
+        where += " AND py.py_ID IS NULL"
+    else:
+        status = ""
+    if query:
+        where += """
+            AND (
+                py.py_ID LIKE %s OR
+                pr.pr_ID LIKE %s OR
+                pat.pat_name LIKE %s OR
+                COALESCE(py.py_status, 'No payment') LIKE %s
+            )
+        """
+        keyword = f"%{query}%"
+        params.extend([keyword, keyword, keyword, keyword])
+
+    payments = fetch_all(
+        f"""
+        SELECT py.py_ID AS payment_id, pr.pr_ID AS prescription_id,
+               pat.pat_name, py.price, py.py_status, py.py_date
+        FROM prescription pr
+        JOIN patient pat ON pat.pat_ID = pr.pat_ID
+        LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
+        {where}
+        ORDER BY COALESCE(py.py_date, pr.pr_date) DESC, pr.pr_ID DESC
+        LIMIT 300
+        """,
+        params,
+    )
+    return render(
+        request,
+        "pharmacist/payments.html",
+        {"payments": payments, "query": query, "status": status},
+    )
 
 
 # Distributor pages.

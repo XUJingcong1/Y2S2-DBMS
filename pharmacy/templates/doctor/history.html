@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- [View] Doctor Prescription History -->
+<div id="view-doctor-history" class="view-section h-full flex flex-col gap-5">
+    <form method="get" class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-50 flex gap-3">
+        <input name="q" value="{{ query }}" placeholder="Search prescription, patient, symptom, or payment status"
+               class="flex-1 bg-slate-50 rounded-full px-5 py-3 text-sm font-bold outline-none">
+        <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search</button>
+    </form>
+
+    <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Prescription History</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">Prescriptions created by the logged-in doctor.</p>
+            </div>
+            <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ prescriptions|length }} records</span>
+        </div>
+
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                    <th class="py-4 px-4">Prescription</th>
+                    <th class="py-4 px-4">Patient</th>
+                    <th class="py-4 px-4">Symptom</th>
+                    <th class="py-4 px-4">Medicines</th>
+                    <th class="py-4 px-4">Pharmacist</th>
+                    <th class="py-4 px-4">Payment</th>
+                    <th class="py-4 px-4 text-right">Price</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm font-bold text-slate-700">
+                {% for prescription in prescriptions %}
+                    <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                        <td class="py-4 px-4">
+                            <span class="font-mono text-slate-500">{{ prescription.prescription_id }}</span>
+                            <span class="block text-[10px] text-slate-400 font-black">{{ prescription.pr_date }}</span>
+                        </td>
+                        <td class="py-4 px-4">
+                            {{ prescription.pat_name }}
+                            <span class="block text-[10px] text-slate-400 font-black">{{ prescription.patient_id }}</span>
+                        </td>
+                        <td class="py-4 px-4 text-slate-500">{{ prescription.pr_symptom }}</td>
+                        <td class="py-4 px-4 max-w-xs text-slate-600">{{ prescription.medicines|default:"No medicines recorded" }}</td>
+                        <td class="py-4 px-4 text-slate-500">{{ prescription.pharmacist_name }}</td>
+                        <td class="py-4 px-4">
+                            {% if prescription.py_status == "paid" %}
+                                <span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs">{{ prescription.py_status }}</span>
+                            {% elif prescription.py_status %}
+                                <span class="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-full text-xs">{{ prescription.py_status }}</span>
+                            {% else %}
+                                <span class="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs">No payment</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-4 text-right font-black text-slate-800">
+                            {% if prescription.price %}${{ prescription.price }}{% else %}-{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-8 px-4 text-center text-slate-400 font-bold">
+                            No prescriptions found.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

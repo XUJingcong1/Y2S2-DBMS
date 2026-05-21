@@ -154,14 +154,19 @@
         icon: 'ph-stethoscope',
         menus: [
             {
-                name: 'Dashboard',
-                url: '/doctor/dashboard/',
-                icon: 'ph-house'
-            },
-            {
-                name: 'Prescribe',
+                name: 'New Prescription',
                 url: '/doctor/prescribe/',
                 icon: 'ph-pencil-simple'
+            },
+            {
+                name: 'Prescription History',
+                url: '/doctor/history/',
+                icon: 'ph-clock-counter-clockwise'
+            },
+            {
+                name: 'Patient Management',
+                url: '/doctor/patients/',
+                icon: 'ph-users'
             }
         ]
     },
@@ -172,19 +177,24 @@
         icon: 'ph-first-aid',
         menus: [
             {
-                name: 'Dashboard',
-                url: '/pharmacist/dashboard/',
-                icon: 'ph-house'
+                name: 'Prescription Audit',
+                url: '/pharmacist/audit/',
+                icon: 'ph-check-square-offset'
             },
             {
-                name: 'Inventory',
+                name: 'Inventory Management',
                 url: '/pharmacist/inventory/',
                 icon: 'ph-package'
             },
             {
-                name: 'Audit',
-                url: '/pharmacist/audit/',
-                icon: 'ph-check-square-offset'
+                name: 'Medicine Batches',
+                url: '/pharmacist/batches/',
+                icon: 'ph-calendar-check'
+            },
+            {
+                name: 'Payment Records',
+                url: '/pharmacist/payments/',
+                icon: 'ph-credit-card'
             }
         ]
     },

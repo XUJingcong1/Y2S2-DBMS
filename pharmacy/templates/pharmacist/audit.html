@@ -1,51 +1,85 @@
 {% extends 'base.html' %}
- 
- {% block content %}
+
+{% block content %}
 <!-- [View] Pharmacist Audit & Dispense -->
-            <div id="view-pharmacist-audit" class="view-section hidden h-full flex flex-col">
-                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
-                    <div class="flex justify-between items-end mb-6">
-                        <div><h2 class="text-2xl font-extrabold text-slate-900">Dispensing & Audit Workspace</h2><p class="text-sm font-bold text-slate-400 mt-1">Verify Prescription, Contain, and Payment status. Dispensing triggers stock deduction.</p></div>
-                    </div>
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
-                                <th class="py-4 px-4">Prescription ID</th>
-                                <th class="py-4 px-4">Patient</th>
-                                <th class="py-4 px-4">Medication Details</th>
-                                <th class="py-4 px-4">Payment Status</th>
-                                <th class="py-4 px-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-sm font-bold text-slate-700">
-                            <!-- Normal Row -->
-                            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                                <td class="py-4 px-4 font-mono text-slate-500">PR-99201</td>
-                                <td class="py-4 px-4">John Doe</td>
-                                <td class="py-4 px-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">Amoxicillin Qty:2</span></td>
-                                <td class="py-4 px-4"><span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs flex items-center w-max"><i class="ph-fill ph-check-circle mr-1"></i> Paid</span></td>
-                                <td class="py-4 px-4 text-right">
-                                    <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs hover:bg-slate-700 shadow-sm">Confirm & Dispense</button>
-                                </td>
-                            </tr>
-                            <!-- ★ Blocked Unpaid Row ★ -->
-                            <tr class="bg-rose-50/50 border-b border-rose-100">
-                                <td class="py-4 px-4 font-mono text-rose-500">PR-99202</td>
-                                <td class="py-4 px-4 text-rose-900">Jane Smith</td>
-                                <td class="py-4 px-4"><span class="bg-white text-slate-600 border border-rose-200 px-2 py-1 rounded text-xs">Ibuprofen Qty:1</span></td>
-                                <td class="py-4 px-4">
-                                    <span class="bg-rose-500 text-white px-3 py-1.5 rounded-full text-xs flex items-center w-max shadow-sm shadow-rose-500/30 animate-pulse">
-                                        <i class="ph-bold ph-warning mr-1"></i> Unpaid
-                                    </span>
-                                </td>
-                                <td class="py-4 px-4 text-right">
-                                    <button class="bg-slate-200 text-slate-400 px-4 py-2 rounded-xl text-xs cursor-not-allowed flex items-center justify-end w-full" disabled>
-                                        <i class="ph-bold ph-prohibit mr-1"></i> Blocked: Do Not Dispense
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+<div id="view-pharmacist-audit" class="view-section h-full flex flex-col gap-5">
+    <form method="get" class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-50 flex gap-3">
+        <input name="q" value="{{ query }}" placeholder="Search prescription, patient, doctor, symptom, or payment status"
+               class="flex-1 bg-slate-50 rounded-full px-5 py-3 text-sm font-bold outline-none">
+        <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search</button>
+    </form>
+
+    <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Dispensing & Audit Workspace</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">Paid prescriptions can be confirmed. Stock is not deducted here because the prescription trigger already handled inventory.</p>
             </div>
+            <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ prescriptions|length }} records</span>
+        </div>
+
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                    <th class="py-4 px-4">Prescription</th>
+                    <th class="py-4 px-4">Patient</th>
+                    <th class="py-4 px-4">Doctor</th>
+                    <th class="py-4 px-4">Symptom</th>
+                    <th class="py-4 px-4">Medication Details</th>
+                    <th class="py-4 px-4">Payment</th>
+                    <th class="py-4 px-4 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm font-bold text-slate-700">
+                {% for prescription in prescriptions %}
+                    <tr class="{% if prescription.py_status == 'paid' %}hover:bg-slate-50 transition-colors border-b border-slate-50{% else %}bg-rose-50/50 border-b border-rose-100{% endif %}">
+                        <td class="py-4 px-4">
+                            <span class="font-mono {% if prescription.py_status == 'paid' %}text-slate-500{% else %}text-rose-500{% endif %}">{{ prescription.prescription_id }}</span>
+                            <span class="block text-[10px] text-slate-400 font-black">{{ prescription.pr_date }}</span>
+                        </td>
+                        <td class="py-4 px-4">{{ prescription.pat_name }}</td>
+                        <td class="py-4 px-4 text-slate-500">{{ prescription.doctor_name }}</td>
+                        <td class="py-4 px-4 text-slate-500">{{ prescription.pr_symptom }}</td>
+                        <td class="py-4 px-4 max-w-xs">
+                            <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">{{ prescription.medicines|default:"No medicines recorded" }}</span>
+                        </td>
+                        <td class="py-4 px-4">
+                            {% if prescription.py_status == "paid" %}
+                                <span class="bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full text-xs inline-flex items-center">
+                                    <i class="ph-fill ph-check-circle mr-1"></i> Paid
+                                </span>
+                            {% elif prescription.py_status %}
+                                <span class="bg-rose-500 text-white px-3 py-1.5 rounded-full text-xs inline-flex items-center shadow-sm shadow-rose-500/30">
+                                    <i class="ph-bold ph-warning mr-1"></i> {{ prescription.py_status }}
+                                </span>
+                            {% else %}
+                                <span class="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs">No payment</span>
+                            {% endif %}
+                            <span class="block text-[10px] text-slate-400 font-black mt-1">
+                                {% if prescription.price %}${{ prescription.price }}{% else %}No price{% endif %}
+                            </span>
+                        </td>
+                        <td class="py-4 px-4 text-right">
+                            {% if prescription.py_status == "paid" %}
+                                <form method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="prescription_id" value="{{ prescription.prescription_id }}">
+                                    <button class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs hover:bg-slate-700 shadow-sm">Confirm / Dispense</button>
+                                </form>
+                            {% else %}
+                                <button class="bg-slate-200 text-slate-400 px-4 py-2 rounded-xl text-xs cursor-not-allowed" disabled>
+                                    Blocked: Do Not Dispense
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-8 px-4 text-center text-slate-400 font-bold">No prescriptions found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

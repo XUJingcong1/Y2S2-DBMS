@@ -1,34 +1,63 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<!-- [View] Pharmacist / Admin Inventory -->
-            <div id="view-pharmacist-inventory" class="view-section h-full flex flex-col">
-                <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
-                    <div class="flex justify-between items-end mb-6">
-                        <div><h2 class="text-2xl font-extrabold text-slate-900">Pharmacy Inventory Ledger</h2><p class="text-sm font-bold text-slate-400 mt-1">Low stock automatically highlighted to ensure dispensing safety.</p></div>
-                    </div>
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
-                                <th class="py-4 px-4">Record ID</th>
-                                <th class="py-4 px-4">Pharmacy Code</th>
-                                <th class="py-4 px-4">Medicine</th>
-                                <th class="py-4 px-4">Current Stock</th>
-                                <th class="py-4 px-4">Last Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-sm font-bold text-slate-700">
-                            {% for store in stores %}
-                            <tr class="{% if store.inventory < 50 %}bg-rose-50/50 border-b border-rose-100{% else %}hover:bg-slate-50 transition-colors border-b border-slate-50{% endif %}">
-                                <td class="py-4 px-4 font-mono {% if store.inventory < 50 %}text-rose-500{% else %}text-slate-500{% endif %}">{{ store.s_id }}</td>
-                                <td class="py-4 px-4">{{ store.p_id }}</td>
-                                <td class="py-4 px-4">{{ store.m_name }}</td>
-                                <td class="py-4 px-4 {% if store.inventory < 50 %}text-rose-600{% else %}text-emerald-600{% endif %} font-black">{{ store.inventory }}</td>
-                                <td class="py-4 px-4 text-slate-500">{{ store.store_date }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+<!-- [View] Pharmacist Inventory -->
+<div id="view-pharmacist-inventory" class="view-section h-full flex flex-col gap-5">
+    <form method="get" class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-50 flex gap-3">
+        <input name="q" value="{{ query }}" placeholder="Search medicine ID, name, or manufacturer"
+               class="flex-1 bg-slate-50 rounded-full px-5 py-3 text-sm font-bold outline-none">
+        <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search</button>
+    </form>
+
+    <div class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Pharmacy Inventory Ledger</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">
+                    {{ pharmacist.pharmacist_name }} - {{ pharmacist.pharmacy_id }} - {{ pharmacist.p_location }}
+                </p>
             </div>
+            <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ stores|length }} records</span>
+        </div>
+
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                    <th class="py-4 px-4">Store ID</th>
+                    <th class="py-4 px-4">Pharmacy</th>
+                    <th class="py-4 px-4">Medicine</th>
+                    <th class="py-4 px-4">Manufacturer</th>
+                    <th class="py-4 px-4">Unit Price</th>
+                    <th class="py-4 px-4">Current Stock</th>
+                    <th class="py-4 px-4">Last Updated</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm font-bold text-slate-700">
+                {% for store in stores %}
+                    <tr class="{% if store.inventory < low_stock_limit %}bg-rose-50/50 border-b border-rose-100{% else %}hover:bg-slate-50 transition-colors border-b border-slate-50{% endif %}">
+                        <td class="py-4 px-4 font-mono {% if store.inventory < low_stock_limit %}text-rose-500{% else %}text-slate-500{% endif %}">{{ store.s_id }}</td>
+                        <td class="py-4 px-4">{{ store.p_id }}</td>
+                        <td class="py-4 px-4 text-slate-900">
+                            {{ store.m_name }}
+                            <span class="block text-[10px] text-slate-400 font-black">{{ store.m_id }}</span>
+                        </td>
+                        <td class="py-4 px-4 text-slate-500">{{ store.manufacturer }}</td>
+                        <td class="py-4 px-4 text-emerald-600">${{ store.unit_price }}</td>
+                        <td class="py-4 px-4 {% if store.inventory < low_stock_limit %}text-rose-600{% else %}text-emerald-600{% endif %} font-black">
+                            {{ store.inventory }}
+                            {% if store.inventory < low_stock_limit %}
+                                <span class="ml-2 bg-rose-100 text-rose-600 px-2 py-1 rounded-full text-[10px]">Low</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-4 text-slate-500">{{ store.store_date }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-8 px-4 text-center text-slate-400 font-bold">No inventory records found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

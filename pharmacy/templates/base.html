@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNBU Modern Hospital Pharmacy System</title>
+    <title>BMED Portal</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -76,6 +76,12 @@
                     <div class="flex items-center justify-center w-11 h-11 rounded-full bg-slate-100 border-2 border-white shadow-sm">
                         <i id="user-icon" class="ph-fill ph-shield-check text-2xl text-slate-700"></i>
                     </div>
+                    <form method="post" action="{% url 'logout' %}" class="ml-2">
+                        {% csrf_token %}
+                        <button type="submit" title="Logout" aria-label="Logout" class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-800 text-white hover:bg-slate-700 transition-colors shadow-sm">
+                            <i class="ph-bold ph-sign-out text-xl"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
         </header>
@@ -144,6 +150,11 @@
                 name: 'Suppliers',
                 url: '/admin/suppliers/',
                 icon: 'ph-warehouse'
+            },
+            {
+                name: 'Orders',
+                url: '/admin/orders/',
+                icon: 'ph-receipt'
             }
         ]
     },
@@ -205,11 +216,6 @@
         icon: 'ph-truck',
         menus: [
             {
-                name: 'Dashboard',
-                url: '/distributor/dashboard/',
-                icon: 'ph-house'
-            },
-            {
                 name: 'Orders',
                 url: '/distributor/orders/',
                 icon: 'ph-receipt'
@@ -222,22 +228,6 @@
         ]
     }
 };
-
-        function logout() {
-            
-            const overlay = document.getElementById('login-overlay');
-            const app = document.getElementById('main-app');
-            
-            app.classList.remove('fade-in');
-            app.classList.add('opacity-0');
-            
-            setTimeout(() => {
-                overlay.style.display = 'flex';
-                overlay.classList.remove('fade-out');
-                overlay.classList.add('fade-in');
-            }, 300);
-        }
-
 
         // ================= 3. Admin Chart Render =================
         function renderAdminChart() {

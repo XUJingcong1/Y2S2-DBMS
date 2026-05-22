@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="h-full flex flex-col gap-5">
+    <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+        <div class="flex justify-between items-end gap-4 mb-5">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Order Management</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">Create paid hospital supply orders for distributor fulfillment.</p>
+            </div>
+            <span class="bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-xs font-black">Order date: {{ project_today }}</span>
+        </div>
+
+        {% if not has_supply_medicine %}
+            <div class="bg-rose-50 text-rose-600 rounded-2xl px-5 py-3 text-sm font-bold mb-4">
+                The current database supply table has no medicine ID column. Import the updated SQL before creating medicine-linked orders.
+            </div>
+        {% endif %}
+
+        <form method="post" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
+            {% csrf_token %}
+            <input name="ho_id" placeholder="Order ID (optional)" class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <select id="order-hospital" name="h_id" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+                <option value="" selected disabled>Select hospital</option>
+                {% for hospital in hospitals %}
+                    <option value="{{ hospital.h_id }}">{{ hospital.h_id }} - {{ hospital.h_name }}</option>
+                {% endfor %}
+            </select>
+            <select id="order-pharmacy" name="p_id" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+                <option value="" selected disabled>Select pharmacy</option>
+                {% for pharmacy in pharmacies %}
+                    <option value="{{ pharmacy.p_id }}" data-hospital="{{ pharmacy.h_id }}">{{ pharmacy.p_id }} - {{ pharmacy.p_location }}</option>
+                {% endfor %}
+            </select>
+            <input name="medicine_lookup" list="order-medicine-options" placeholder="Medicine ID or name" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <datalist id="order-medicine-options">
+                {% for medicine in medicines %}
+                    <option value="{{ medicine.m_id }}">{{ medicine.m_name }} - {{ medicine.manufacturer }}{% if medicine.inventory != None %} / stock {{ medicine.inventory }}{% endif %}</option>
+                {% endfor %}
+            </datalist>
+            <input name="quantity" type="number" min="1" step="1" placeholder="Quantity" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+            <select name="d_id" required class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">
+                <option value="" selected disabled>Select distributor</option>
+                {% for distributor in distributors %}
+                    <option value="{{ distributor.d_id }}">{{ distributor.d_id }} - {{ distributor.d_name }}</option>
+                {% endfor %}
+            </select>
+            <button class="bg-slate-800 text-white px-5 py-3 rounded-xl text-sm font-black">Create Paid Order</button>
+        </form>
+    </section>
+
+    <section class="bg-white rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col border border-slate-50">
+        <div class="flex justify-between items-end gap-4 mb-5">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Recent Orders</h2>
+                <p class="text-sm font-bold text-slate-400 mt-1">New paid orders appear in the assigned distributor workspace.</p>
+            </div>
+            <span class="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-xs font-black">{{ orders|length }} orders</span>
+        </div>
+
+        <form method="get" class="bg-slate-50 rounded-[1.5rem] p-4 mb-5 flex gap-3">
+            <input name="q" value="{{ query }}" placeholder="Search order, hospital, distributor, pharmacy, medicine, or status"
+                   class="flex-1 bg-white rounded-full px-5 py-3 text-sm font-bold outline-none">
+            <button class="bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold">Search</button>
+        </form>
+
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-slate-400 text-xs uppercase font-extrabold border-b border-slate-100">
+                    <th class="py-4 px-4">Order ID</th>
+                    <th class="py-4 px-4">Hospital</th>
+                    <th class="py-4 px-4">Target Pharmacy</th>
+                    <th class="py-4 px-4">Medicine ID</th>
+                    <th class="py-4 px-4">Medicine</th>
+                    <th class="py-4 px-4">Distributor</th>
+                    <th class="py-4 px-4">Quantity</th>
+                    <th class="py-4 px-4">Date</th>
+                    <th class="py-4 px-4">Status</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm font-bold text-slate-700">
+                {% for order in orders %}
+                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td class="py-4 px-4 font-mono text-slate-500">{{ order.ho_id }}</td>
+                        <td class="py-4 px-4">{{ order.h_name }} <span class="text-slate-400">({{ order.h_id }})</span></td>
+                        <td class="py-4 px-4 text-slate-500">{{ order.pharmacy_targets|default:"-" }}</td>
+                        <td class="py-4 px-4 font-mono text-slate-500">{{ order.medicine_ids|default:"-" }}</td>
+                        <td class="py-4 px-4">{{ order.medicine_names|default:"-" }}</td>
+                        <td class="py-4 px-4">{{ order.d_name }} <span class="text-slate-400">({{ order.d_id }})</span></td>
+                        <td class="py-4 px-4">{{ order.total_quantity }}</td>
+                        <td class="py-4 px-4">{{ order.ho_date }}</td>
+                        <td class="py-4 px-4"><span class="bg-soft-yellow text-white px-3 py-1.5 rounded-full text-xs">{{ order.ho_status }}</span></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="py-8 px-4 text-center text-slate-400 font-bold">No orders found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<script>
+    const hospitalSelect = document.getElementById('order-hospital');
+    const pharmacySelect = document.getElementById('order-pharmacy');
+    function filterPharmacies() {
+        const hospitalId = hospitalSelect.value;
+        Array.from(pharmacySelect.options).forEach((option) => {
+            if (!option.value) return;
+            option.hidden = hospitalId && option.dataset.hospital !== hospitalId;
+        });
+        if (pharmacySelect.selectedOptions.length && pharmacySelect.selectedOptions[0].hidden) {
+            pharmacySelect.value = '';
+        }
+    }
+    hospitalSelect.addEventListener('change', filterPharmacies);
+    filterPharmacies();
+</script>
+{% endblock %}

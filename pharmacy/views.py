@@ -120,6 +120,24 @@ def next_code(table, column, prefix, width):
     return f"{prefix}{next_no:0{width}d}"
 
 
+def table_has_column(table, column):
+    row = fetch_one(
+        """
+        SELECT COUNT(*) AS total
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = %s
+          AND column_name = %s
+        """,
+        [table, column],
+    )
+    return bool(row and row["total"])
+
+
+def supply_has_medicine_column():
+    return table_has_column("supply", "m_ID")
+
+
 def selected_role(request):
     return request.session.get("role", "Admin")
 
@@ -673,6 +691,186 @@ def admin_suppliers(request):
             "records": records,
             "pharmacies": pharmacies,
             "query": query,
+        },
+    )
+
+
+def admin_orders(request):
+    has_supply_medicine = supply_has_medicine_column()
+    if request.method == "POST":
+        hospital_id = (request.POST.get("h_id") or "").strip()
+        pharmacy_id = (request.POST.get("p_id") or "").strip()
+        distributor_id = (request.POST.get("d_id") or "").strip()
+        quantity_raw = (request.POST.get("quantity") or "").strip()
+        medicine_lookup = (request.POST.get("medicine_lookup") or request.POST.get("medicine_id") or "").strip()
+        custom_order_id = (request.POST.get("ho_id") or "").strip()
+
+        if not has_supply_medicine:
+            messages.error(
+                request,
+                "Current supply table is missing m_ID. Import the updated SQL before creating medicine-linked orders.",
+            )
+            return redirect("admin_orders")
+
+        if not all([hospital_id, pharmacy_id, distributor_id, medicine_lookup, quantity_raw]):
+            messages.error(request, "Hospital, pharmacy, medicine, distributor, and quantity are required.")
+            return redirect("admin_orders")
+
+        try:
+            quantity = int(quantity_raw)
+        except ValueError:
+            messages.error(request, "Order quantity must be a positive integer.")
+            return redirect("admin_orders")
+
+        if quantity <= 0:
+            messages.error(request, "Order quantity must be greater than zero.")
+            return redirect("admin_orders")
+
+        try:
+            pharmacy = fetch_one(
+                """
+                SELECT p_ID AS p_id
+                FROM pharmacy
+                WHERE p_ID = %s AND h_ID = %s
+                """,
+                [pharmacy_id, hospital_id],
+            )
+            distributor = fetch_one(
+                """
+                SELECT d_ID AS d_id
+                FROM distributor
+                WHERE d_ID = %s
+                """,
+                [distributor_id],
+            )
+            medicine = fetch_one(
+                """
+                SELECT m_ID AS m_id, m_name
+                FROM medicine
+                WHERE m_ID = %s
+                   OR LOWER(m_name) = LOWER(%s)
+                   OR m_name LIKE %s
+                ORDER BY
+                    CASE
+                        WHEN m_ID = %s THEN 0
+                        WHEN LOWER(m_name) = LOWER(%s) THEN 1
+                        ELSE 2
+                    END,
+                    m_ID
+                LIMIT 1
+                """,
+                [medicine_lookup, medicine_lookup, f"%{medicine_lookup}%", medicine_lookup, medicine_lookup],
+            )
+            if not pharmacy:
+                messages.error(request, "Selected pharmacy does not belong to the selected hospital.")
+                return redirect("admin_orders")
+            if not distributor:
+                messages.error(request, "Selected distributor does not exist.")
+                return redirect("admin_orders")
+            if not medicine:
+                messages.error(request, "Selected medicine was not found by ID or name.")
+                return redirect("admin_orders")
+
+            with transaction.atomic():
+                order_id = custom_order_id or next_code("hospital_order", "ho_ID", "HO-", 4)
+                execute_sql(
+                    """
+                    INSERT INTO hospital_order (ho_ID, h_ID, ho_date, ho_status, d_ID)
+                    VALUES (%s, %s, %s, 'paid', %s)
+                    """,
+                    [order_id, hospital_id, PROJECT_TODAY, distributor_id],
+                )
+                execute_sql(
+                    """
+                    INSERT INTO supply (ho_ID, quantity, p_ID, m_ID)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    [order_id, str(quantity), pharmacy_id, medicine["m_id"]],
+                )
+        except DatabaseError as error:
+            messages.error(request, readable_database_error(error))
+            return redirect("admin_orders")
+
+        messages.success(request, f"Paid order {order_id} created for distributor {distributor_id}.")
+        return redirect("admin_orders")
+
+    query = request.GET.get("q", "").strip()
+    hospitals = fetch_all("SELECT h_ID AS h_id, h_name FROM hospital ORDER BY h_ID")
+    pharmacies = fetch_all(
+        """
+        SELECT p_ID AS p_id, h_ID AS h_id, p_location
+        FROM pharmacy
+        ORDER BY h_ID, p_ID
+        """
+    )
+    distributors = fetch_all("SELECT d_ID AS d_id, d_name FROM distributor ORDER BY d_ID")
+    medicines = fetch_all(
+        """
+        SELECT m_ID AS m_id, m_name, manufacturer
+        FROM medicine
+        ORDER BY m_name, m_ID
+        LIMIT 500
+        """
+    )
+    params = []
+    where = ""
+    if query:
+        medicine_search = ""
+        if has_supply_medicine:
+            medicine_search = "OR s.m_ID LIKE %s OR m.m_name LIKE %s"
+        where = """
+        WHERE ho.ho_ID LIKE %s OR h.h_ID LIKE %s OR h.h_name LIKE %s
+              OR d.d_ID LIKE %s OR d.d_name LIKE %s OR s.p_ID LIKE %s
+              OR ho.ho_status LIKE %s
+              {medicine_search}
+        """
+        where = where.format(medicine_search=medicine_search)
+        keyword = f"%{query}%"
+        params = [keyword, keyword, keyword, keyword, keyword, keyword, keyword]
+        if has_supply_medicine:
+            params.extend([keyword, keyword])
+    medicine_select = "NULL AS medicine_ids, NULL AS medicine_names"
+    medicine_join = ""
+    if has_supply_medicine:
+        medicine_select = """
+               GROUP_CONCAT(DISTINCT s.m_ID ORDER BY s.m_ID SEPARATOR ', ') AS medicine_ids,
+               GROUP_CONCAT(DISTINCT m.m_name ORDER BY m.m_name SEPARATOR ', ') AS medicine_names
+        """
+        medicine_join = "LEFT JOIN medicine m ON m.m_ID = s.m_ID"
+    orders = fetch_all(
+        f"""
+        SELECT ho.ho_ID AS ho_id, ho.ho_date, ho.ho_status,
+               h.h_ID AS h_id, h.h_name,
+               d.d_ID AS d_id, d.d_name,
+               COALESCE(SUM(CAST(s.quantity AS UNSIGNED)), 0) AS total_quantity,
+               GROUP_CONCAT(DISTINCT CONCAT(s.p_ID, ' - ', p.p_location)
+                            ORDER BY s.p_ID SEPARATOR ', ') AS pharmacy_targets,
+               {medicine_select}
+        FROM hospital_order ho
+        JOIN hospital h ON h.h_ID = ho.h_ID
+        JOIN distributor d ON d.d_ID = ho.d_ID
+        LEFT JOIN supply s ON s.ho_ID = ho.ho_ID
+        LEFT JOIN pharmacy p ON p.p_ID = s.p_ID
+        {medicine_join}
+        {where}
+        GROUP BY ho.ho_ID, ho.ho_date, ho.ho_status, h.h_ID, h.h_name, d.d_ID, d.d_name
+        ORDER BY ho.ho_date DESC, ho.ho_ID DESC
+        LIMIT 200
+        """,
+        params,
+    )
+    return render(
+        request,
+        "admin/orders.html",
+        {
+            "hospitals": hospitals,
+            "pharmacies": pharmacies,
+            "distributors": distributors,
+            "medicines": medicines,
+            "orders": orders,
+            "query": query,
+            "project_today": PROJECT_TODAY,
+            "has_supply_medicine": has_supply_medicine,
         },
     )
 
@@ -1231,6 +1429,7 @@ def pharmacist_batches(request):
             END,
             days_left ASC,
             mb.expiration_date ASC
+        LIMIT 500
         """,
         batch_params,
     )
@@ -1393,12 +1592,12 @@ def pharmacist_payments(request):
         f"""
         SELECT py.py_ID AS payment_id, pr.pr_ID AS prescription_id,
                pat.pat_name, py.price, py.py_status, py.py_date
-        FROM prescription pr
+        FROM prescription pr FORCE INDEX (ph_ID)
         JOIN patient pat ON pat.pat_ID = pr.pat_ID
         LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
         {where}
         ORDER BY COALESCE(py.py_date, pr.pr_date) DESC, pr.pr_ID DESC
-        LIMIT 300
+        LIMIT 200
         """,
         params,
     )
@@ -1418,6 +1617,7 @@ def current_distributor_id(request):
 
 def distributor_orders(request):
     distributor_id = current_distributor_id(request)
+    has_supply_medicine = supply_has_medicine_column()
     if request.method == "POST":
         order_id = request.POST.get("ho_id")
         order = fetch_one(
@@ -1448,16 +1648,33 @@ def distributor_orders(request):
         messages.success(request, "Order status updated.")
         return redirect("distributor_orders")
 
+    status = request.GET.get("status", "").strip().lower()
+    status_choices = ["paid", "shipping", "completed"]
     params = []
-    where = ""
+    filters = []
     if distributor_id:
-        where = "WHERE ho.d_ID = %s"
+        filters.append("ho.d_ID = %s")
         params.append(distributor_id)
+    if status in status_choices:
+        filters.append("LOWER(ho.ho_status) = %s")
+        params.append(status)
+    else:
+        status = ""
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    medicine_select = "NULL AS medicine_ids, NULL AS medicine_names"
+    medicine_join = ""
+    if has_supply_medicine:
+        medicine_select = """
+               GROUP_CONCAT(DISTINCT s.m_ID ORDER BY s.m_ID SEPARATOR ', ') AS medicine_ids,
+               GROUP_CONCAT(DISTINCT m.m_name ORDER BY m.m_name SEPARATOR ', ') AS medicine_names
+        """
+        medicine_join = "LEFT JOIN medicine m ON m.m_ID = s.m_ID"
     orders = fetch_all(
         f"""
         SELECT ho.ho_ID AS ho_id, ho.ho_date, ho.ho_status, ho.d_ID AS d_id,
                h.h_ID AS h_id, h.h_name, h.h_address,
                COALESCE(SUM(CAST(s.quantity AS UNSIGNED)), 0) AS total_quantity,
+               {medicine_select},
                CASE
                    WHEN LOWER(ho.ho_status) = 'paid' THEN 'shipping'
                    WHEN LOWER(ho.ho_status) = 'shipping' THEN 'completed'
@@ -1466,6 +1683,7 @@ def distributor_orders(request):
         FROM hospital_order ho
         JOIN hospital h ON h.h_ID = ho.h_ID
         LEFT JOIN supply s ON s.ho_ID = ho.ho_ID
+        {medicine_join}
         {where}
         GROUP BY ho.ho_ID, ho.ho_date, ho.ho_status, ho.d_ID, h.h_ID, h.h_name, h.h_address
         ORDER BY ho.ho_date DESC, ho.ho_ID DESC
@@ -1476,12 +1694,19 @@ def distributor_orders(request):
     return render(
         request,
         "distributor/order.html",
-        {"orders": orders, "distributor_id": distributor_id},
+        {
+            "orders": orders,
+            "distributor_id": distributor_id,
+            "status": status,
+            "status_choices": status_choices,
+            "has_supply_medicine": has_supply_medicine,
+        },
     )
 
 
 def distributor_shipments(request):
     distributor_id = current_distributor_id(request)
+    has_supply_medicine = supply_has_medicine_column()
     if request.method == "POST":
         execute_sql(
             """
@@ -1506,6 +1731,9 @@ def distributor_shipments(request):
         where += " AND ho.d_ID = %s"
         params.append(distributor_id)
     if query:
+        medicine_search = ""
+        if has_supply_medicine:
+            medicine_search = "OR s.m_ID LIKE %s OR m.m_name LIKE %s"
         where += """
             AND (
                 ho.ho_ID LIKE %s OR
@@ -1514,16 +1742,27 @@ def distributor_shipments(request):
                 s.supply_ID LIKE %s OR
                 s.p_ID LIKE %s OR
                 CAST(s.quantity AS CHAR) LIKE %s
+                {medicine_search}
             )
         """
+        where = where.format(medicine_search=medicine_search)
         params.extend([keyword, keyword, keyword, keyword, keyword, keyword])
+        if has_supply_medicine:
+            params.extend([keyword, keyword])
+    medicine_select = "NULL AS m_id, NULL AS m_name"
+    medicine_join = ""
+    if has_supply_medicine:
+        medicine_select = "s.m_ID AS m_id, m.m_name"
+        medicine_join = "LEFT JOIN medicine m ON m.m_ID = s.m_ID"
     shipments = fetch_all(
         f"""
         SELECT ho.ho_ID AS ho_id, ho.ho_date, ho.ho_status, h.h_name,
+               {medicine_select},
                s.supply_ID AS supply_id, s.quantity, s.p_ID AS p_id
         FROM hospital_order ho
         JOIN hospital h ON h.h_ID = ho.h_ID
         LEFT JOIN supply s ON s.ho_ID = ho.ho_ID
+        {medicine_join}
         {where}
         ORDER BY ho.ho_date DESC, ho.ho_ID DESC
         LIMIT 200
@@ -1548,12 +1787,20 @@ def distributor_shipments(request):
         """,
         batch_params,
     )
+    medicine_params = []
+    medicine_where = ""
+    if query:
+        medicine_where = "WHERE m_ID LIKE %s OR m_name LIKE %s"
+        medicine_params = [keyword, keyword]
     medicines = fetch_all(
-        """
+        f"""
         SELECT m_ID AS m_id, m_name
         FROM medicine
+        {medicine_where}
         ORDER BY m_name
-        """
+        LIMIT 500
+        """,
+        medicine_params,
     )
     return render(
         request,

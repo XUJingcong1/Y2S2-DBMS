@@ -15,6 +15,12 @@ urlpatterns = [
         name='login'
     ),
 
+    path(
+        'logout/',
+        views.logout_view,
+        name='logout'
+    ),
+
     # =====================================================
     # ADMIN DASHBOARD
     # =====================================================
@@ -85,6 +91,12 @@ urlpatterns = [
         'admin/suppliers/',
         views.admin_suppliers,
         name='admin_suppliers'
+    ),
+
+    path(
+        'admin/orders/',
+        views.admin_orders,
+        name='admin_orders'
     ),
 
     # =====================================================

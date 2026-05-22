@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： 127.0.0.1
--- 生成日期： 2026-05-12 13:00:15
+-- 生成日期： 2026-05-21 13:57:23
 -- 服务器版本： 10.4.32-MariaDB
 -- PHP 版本： 8.1.25
 
@@ -20,6 +20,25 @@ SET time_zone = "+00:00";
 --
 -- 数据库： `hospital_pharmacy_management`
 --
+
+-- --------------------------------------------------------
+
+--
+-- 表的结构 `admin`
+--
+
+CREATE TABLE `admin` (
+  `admin_id` varchar(20) NOT NULL,
+  `admin_name` varchar(50) DEFAULT NULL,
+  `admin_password` varchar(100) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- 转存表中的数据 `admin`
+--
+
+INSERT INTO `admin` (`admin_id`, `admin_name`, `admin_password`) VALUES
+('AD-001', 'System Admin', 'admin123');
 
 -- --------------------------------------------------------
 
@@ -70421,6 +70440,14 @@ CREATE TABLE `django_session` (
   `session_data` longtext NOT NULL,
   `expire_date` datetime(6) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- 转存表中的数据 `django_session`
+--
+
+INSERT INTO `django_session` (`session_key`, `session_data`, `expire_date`) VALUES
+('0gz2gr6yakjekvsxg1kbskl1xpouhgov', '.eJyrVirKz0lVslJyySwuKcpMKi3JL1LSUSotTi2Kz0wBiXsG6xoYGMLE8hJzQap9U1MykxNzFJB0KRgq1QIA-ykZ5w:1wPcQ4:5oTcfb_NNeyE_ltDVXhpHJ3p2zO9XolqbLm9tiV8CtA', '2026-06-03 08:36:48.121536'),
+('1aetc89vilbyo6ja66s6ymva3wkbe45w', 'eyJyb2xlIjoiQWRtaW4ifQ:1wObtH:cWOn61EkhzVAwIhblSoNBYVt5pQbS47g0vuE6b231z8', '2026-05-31 13:50:47.456584');
 
 -- --------------------------------------------------------
 
@@ -187654,7 +187681,8 @@ INSERT INTO `medicine_batch` (`mb_ID`, `m_ID`, `production_date`, `expiration_da
 ('MB-59997', 'MED-4328858', '2023-06-09', '2025-06-17'),
 ('MB-59998', 'MED-4950707', '2024-02-27', '2026-06-24'),
 ('MB-59999', 'MED-5217759', '2024-10-29', '2027-04-02'),
-('MB-60000', 'MED-7039519', '2024-09-12', '2026-07-18');
+('MB-60000', 'MED-7039519', '2024-09-12', '2026-07-18'),
+('MB-60001', 'MED-1081397', '2026-05-20', '2026-05-22');
 
 --
 -- 触发器 `medicine_batch`
@@ -353142,6 +353170,12 @@ INSERT INTO `supply` (`ho_ID`, `quantity`, `p_ID`, `supply_ID`) VALUES
 --
 -- 转储表的索引
 --
+
+--
+-- 表的索引 `admin`
+--
+ALTER TABLE `admin`
+  ADD PRIMARY KEY (`admin_id`);
 
 --
 -- 表的索引 `auth_group`

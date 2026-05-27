@@ -1820,16 +1820,16 @@ def distributor_shipments(request):
 
 def login_view(request):
     if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-        role = request.POST.get("role")
+        username = (request.POST.get("username") or "").strip().upper()
+        password = (request.POST.get("password") or "").strip()
+        role = (request.POST.get("role") or "").strip()
 
         auth_sql = {
             "Admin": (
                 """
                 SELECT admin_id AS user_id, admin_name AS user_name
                 FROM admin
-                WHERE admin_id = %s AND admin_password = %s
+                WHERE UPPER(admin_id) = %s AND admin_password = %s
                 """,
                 "admin_dashboard",
             ),
@@ -1837,7 +1837,7 @@ def login_view(request):
                 """
                 SELECT d_ID AS user_id, d_name AS user_name
                 FROM distributor
-                WHERE d_ID = %s AND d_password = %s
+                WHERE UPPER(d_ID) = %s AND d_password = %s
                 """,
                 "distributor_orders",
             ),
@@ -1845,7 +1845,7 @@ def login_view(request):
                 """
                 SELECT dc_ID AS user_id, CONCAT(dc_first_name, ' ', dc_last_name) AS user_name
                 FROM doctor
-                WHERE dc_ID = %s AND dc_password = %s
+                WHERE UPPER(dc_ID) = %s AND dc_password = %s
                 """,
                 "doctor_prescribe",
             ),
@@ -1853,7 +1853,7 @@ def login_view(request):
                 """
                 SELECT ph_ID AS user_id, CONCAT(ph_firstname, ' ', ph_lastname) AS user_name
                 FROM pharmacist
-                WHERE ph_ID = %s AND ph_password = %s
+                WHERE UPPER(ph_ID) = %s AND ph_password = %s
                 """,
                 "pharmacist_inventory",
             ),
@@ -1867,7 +1867,20 @@ def login_view(request):
                 request.session["user_name"] = user["user_name"]
                 return redirect(route_name)
 
-        return render(request, "login.html", {"error": "Invalid username or password"})
+        error = "Invalid username or password"
+        if role == "Distributor" and username:
+            distributor = fetch_one(
+                """
+                SELECT d_ID AS user_id
+                FROM distributor
+                WHERE UPPER(d_ID) = %s
+                """,
+                [username],
+            )
+            if distributor:
+                error = "Distributor ID exists, but the password does not match the current database."
+
+        return render(request, "login.html", {"error": error})
 
     return render(request, "login.html")
 

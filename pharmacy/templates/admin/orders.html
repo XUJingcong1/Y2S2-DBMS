@@ -11,12 +11,6 @@
             <span class="bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-xs font-black">Order date: {{ project_today }}</span>
         </div>
 
-        {% if not has_supply_medicine %}
-            <div class="bg-rose-50 text-rose-600 rounded-2xl px-5 py-3 text-sm font-bold mb-4">
-                The current database supply table has no medicine ID column. Import the updated SQL before creating medicine-linked orders.
-            </div>
-        {% endif %}
-
         <form method="post" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
             {% csrf_token %}
             <input name="ho_id" placeholder="Order ID (optional)" class="bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold">

@@ -708,7 +708,7 @@ def admin_orders(request):
         if not has_supply_medicine:
             messages.error(
                 request,
-                "Current supply table is missing m_ID. Import the updated SQL before creating medicine-linked orders.",
+                "Order creation is not available for the current local data import. Please refresh the data and try again.",
             )
             return redirect("admin_orders")
 
@@ -1592,7 +1592,7 @@ def pharmacist_payments(request):
         f"""
         SELECT py.py_ID AS payment_id, pr.pr_ID AS prescription_id,
                pat.pat_name, py.price, py.py_status, py.py_date
-        FROM prescription pr FORCE INDEX (ph_ID)
+        FROM prescription pr
         JOIN patient pat ON pat.pat_ID = pr.pat_ID
         LEFT JOIN payment py ON py.pr_ID = pr.pr_ID
         {where}

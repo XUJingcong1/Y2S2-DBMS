@@ -52,7 +52,7 @@
                     <option value="" selected disabled>Select available medicine</option>
                     {% for medicine in medicines %}
                         <option value="{{ medicine.medicine_id }}">
-                            {{ medicine.m_name }} - {{ medicine.manufacturer }} - ${{ medicine.unit_price }} - Stock {{ medicine.inventory }}
+                            {{ medicine.m_name }} - {{ medicine.manufacturer }} - ${{ medicine.unit_price }} - Hospital stock {{ medicine.inventory }}
                         </option>
                     {% endfor %}
                 </select>
@@ -115,7 +115,7 @@
             <div class="flex justify-between items-end mb-4">
                 <div>
                     <h2 class="text-lg font-extrabold text-slate-900">Available Medicines</h2>
-                    <p class="text-xs font-bold text-slate-400 mt-1">Inventory is pulled from Store and checked again by database triggers.</p>
+                    <p class="text-xs font-bold text-slate-400 mt-1">Inventory is filtered to this doctor's hospital pharmacies and checked again by database triggers.</p>
                 </div>
                 <span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-black">{{ medicines|length }} medicines</span>
             </div>
@@ -131,7 +131,7 @@
                             <th class="py-3 px-4">Medicine</th>
                             <th class="py-3 px-4">Manufacturer</th>
                             <th class="py-3 px-4">Unit Price</th>
-                            <th class="py-3 px-4 text-right">Inventory</th>
+                            <th class="py-3 px-4 text-right">Hospital Stock</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm font-bold text-slate-700">

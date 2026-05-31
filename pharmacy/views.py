@@ -63,6 +63,7 @@ def execute_sql(sql, params=None):
 
 
 def use_project_clock(cursor):
+    cursor.execute("SET NAMES utf8mb4 COLLATE utf8mb4_general_ci")
     cursor.execute("SET time_zone = '+08:00'")
     cursor.execute("SET timestamp = %s", [PROJECT_TIMESTAMP])
 
@@ -75,6 +76,8 @@ def readable_database_error(error):
         return "Expiration date must be after production date."
     if "Medicine batch already expired" in message:
         return "Medicine batch already expired."
+    if "Illegal mix of collations" in message:
+        return "Database text encoding settings are inconsistent. Please refresh the database connection and try again."
     if "foreign key" in message.lower():
         return "The selected record is invalid or no longer exists."
     return f"Database rejected the request: {message}"
@@ -918,24 +921,31 @@ def load_doctor_patients(doctor_id):
     )
 
 
-def load_available_medicines(query=""):
-    params = []
-    where = ""
+def load_available_medicines(doctor_id, query=""):
+    params = [doctor_id]
+    where = "WHERE dc.dc_ID = %s"
     if query:
-        where = """
-        WHERE m.m_ID LIKE %s OR m.m_name LIKE %s OR m.manufacturer LIKE %s
+        where += """
+        AND (m.m_ID LIKE %s OR m.m_name LIKE %s OR m.manufacturer LIKE %s)
         """
         keyword = f"%{query}%"
-        params = [keyword, keyword, keyword]
+        params.extend([keyword, keyword, keyword])
     return fetch_all(
         f"""
         SELECT m.m_ID AS medicine_id, m.m_name, m.manufacturer, m.unit_price,
-               MIN(s.inventory) AS inventory, SUM(s.inventory) AS total_inventory
-        FROM medicine m
-        JOIN store s ON s.m_ID = m.m_ID
+               MAX(s.inventory) AS inventory
+        FROM doctor dc
+        JOIN pharmacy p ON p.h_ID = dc.h_ID
+        JOIN store s ON s.p_ID = p.p_ID
+        JOIN medicine m ON m.m_ID = s.m_ID
         {where}
+          AND EXISTS (
+              SELECT 1
+              FROM pharmacist ph
+              WHERE ph.p_ID = p.p_ID
+          )
         GROUP BY m.m_ID, m.m_name, m.manufacturer, m.unit_price
-        HAVING MIN(s.inventory) > 0
+        HAVING MAX(s.inventory) > 0
         ORDER BY m.m_name, m.m_ID
         LIMIT 300
         """,
@@ -957,7 +967,25 @@ def load_pharmacists():
     )
 
 
-def assign_hospital_pharmacist(doctor_id):
+def assign_hospital_pharmacist(doctor_id, medicine_id=None, quantity=None):
+    if medicine_id and quantity:
+        return fetch_one(
+            """
+            SELECT ph.ph_ID AS pharmacist_id,
+                   CONCAT(ph.ph_firstname, ' ', ph.ph_lastname) AS pharmacist_name,
+                   ph.p_ID AS pharmacy_id
+            FROM doctor dc
+            JOIN pharmacy p ON p.h_ID = dc.h_ID
+            JOIN store s ON s.p_ID = p.p_ID
+            JOIN pharmacist ph ON ph.p_ID = p.p_ID
+            WHERE dc.dc_ID = %s
+              AND s.m_ID = %s
+              AND s.inventory >= %s
+            ORDER BY RAND()
+            LIMIT 1
+            """,
+            [doctor_id, medicine_id, quantity],
+        )
     return fetch_one(
         """
         SELECT ph.ph_ID AS pharmacist_id,
@@ -1028,27 +1056,35 @@ def doctor_prescribe(request):
             messages.error(request, "Selected patient is not assigned to this doctor.")
             return redirect("doctor_prescribe")
 
-        pharmacist = assign_hospital_pharmacist(doctor_id)
-        if not pharmacist:
-            messages.error(request, "No pharmacist is available in this doctor's hospital.")
-            return redirect("doctor_prescribe")
-
         medicine = fetch_one(
             """
-            SELECT m.m_ID AS medicine_id, MIN(s.inventory) AS inventory
-            FROM medicine m
-            JOIN store s ON s.m_ID = m.m_ID
-            WHERE m.m_ID = %s
+            SELECT m.m_ID AS medicine_id, MAX(s.inventory) AS inventory
+            FROM doctor dc
+            JOIN pharmacy p ON p.h_ID = dc.h_ID
+            JOIN store s ON s.p_ID = p.p_ID
+            JOIN medicine m ON m.m_ID = s.m_ID
+            WHERE dc.dc_ID = %s
+              AND m.m_ID = %s
+              AND EXISTS (
+                  SELECT 1
+                  FROM pharmacist ph
+                  WHERE ph.p_ID = p.p_ID
+              )
             GROUP BY m.m_ID
             """,
-            [medicine_id],
+            [doctor_id, medicine_id],
         )
         if not medicine:
-            messages.error(request, "Selected medicine is not available in inventory.")
+            messages.error(request, "Selected medicine is not available in this hospital's pharmacy inventory.")
             return redirect("doctor_prescribe")
 
         if int(medicine["inventory"] or 0) < quantity:
             messages.error(request, "Cannot prescribe: insufficient stock for the selected medicine.")
+            return redirect("doctor_prescribe")
+
+        pharmacist = assign_hospital_pharmacist(doctor_id, medicine_id, quantity)
+        if not pharmacist:
+            messages.error(request, "No same-hospital pharmacist has enough stock for the selected medicine.")
             return redirect("doctor_prescribe")
 
         try:
@@ -1090,7 +1126,7 @@ def doctor_prescribe(request):
     context = {
         "doctor": doctor,
         "patients": load_doctor_patients(doctor_id),
-        "medicines": load_available_medicines(medicine_query),
+        "medicines": load_available_medicines(doctor_id, medicine_query),
         "medicine_query": medicine_query,
         "hospital_pharmacist_count": hospital_pharmacist_count(doctor_id),
     }

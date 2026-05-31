@@ -70252,7 +70252,7 @@ INSERT INTO `contain` (`pr_ID`, `m_ID`, `quantity`) VALUES
 --
 DELIMITER $$
 CREATE TRIGGER `trg_check_stock` BEFORE INSERT ON `contain` FOR EACH ROW BEGIN
-    DECLARE target_pharmacy_id VARCHAR(10);
+    DECLARE target_pharmacy_id VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
     DECLARE current_stock INT DEFAULT 0;
 
     SELECT ph.p_ID
@@ -70282,7 +70282,7 @@ $$
 DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_reduce_inventory` AFTER INSERT ON `contain` FOR EACH ROW BEGIN
-    DECLARE target_pharmacy_id VARCHAR(10);
+    DECLARE target_pharmacy_id VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
     SELECT ph.p_ID
     INTO target_pharmacy_id
